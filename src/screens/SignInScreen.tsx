@@ -48,7 +48,7 @@ export function SignInScreen({ navigation }: Props) {
           <View style={styles.logoIcon}>
             <Sun size={28} color="#FFFFFF" />
           </View>
-          <Text style={styles.appName}>Lumio</Text>
+          <Text style={styles.appName}>Lumyo</Text>
           <Text style={styles.subtitle}>Welcome back. Sign in to continue.</Text>
         </View>
 

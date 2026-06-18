@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from 'react-native';
-import { Sun, User, Mail, Lock, Eye, EyeOff, Globe, CheckSquare, Square } from 'lucide-react-native';
+import { Sun, User, Mail, Lock, Eye, EyeOff, CheckSquare, Square } from 'lucide-react-native';
 import { colors, fonts, radius } from '../theme';
 import { useAuth } from '../context/AuthContext';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -130,23 +130,6 @@ export function SignUpScreen({ navigation }: Props) {
             }
           </TouchableOpacity>
 
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or continue with</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <View style={styles.socialRow}>
-            <TouchableOpacity style={styles.socialBtn}>
-              <Globe size={16} color={colors.textPrimary} />
-              <Text style={styles.socialBtnText}>Google</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.socialBtn}>
-              <Sun size={16} color={colors.textPrimary} />
-              <Text style={styles.socialBtnText}>Apple</Text>
-            </TouchableOpacity>
-          </View>
-
           <View style={styles.switchRow}>
             <Text style={styles.switchText}>Already have an account? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('SignIn')}>
@@ -161,7 +144,7 @@ export function SignUpScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bgPrimary },
-  container: { paddingHorizontal: 28, paddingBottom: 40 },
+  container: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingBottom: 40 },
   logoBlock: { alignItems: 'center', paddingTop: 24, paddingBottom: 32 },
   logoIcon: {
     width: 64, height: 64, borderRadius: 18,
@@ -187,15 +170,6 @@ const styles = StyleSheet.create({
     paddingVertical: 15, alignItems: 'center', marginTop: 4,
   },
   primaryBtnText: { fontFamily: fonts.inter.semiBold, fontSize: 15, color: '#FFFFFF' },
-  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
-  dividerText: { fontFamily: fonts.inter.regular, fontSize: 13, color: colors.textMuted },
-  socialRow: { flexDirection: 'row', gap: 12 },
-  socialBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingVertical: 13,
-  },
-  socialBtnText: { fontFamily: fonts.inter.medium, fontSize: 14, color: colors.textPrimary },
   switchRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 4 },
   switchText: { fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textSecondary },
   switchLink: { fontFamily: fonts.inter.semiBold, fontSize: 14, color: colors.textPrimary },
