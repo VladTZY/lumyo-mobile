@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FileText, Sparkles, ArrowUp, ChevronLeft } from 'lucide-react-native';
 import { colors, fonts, radius } from '../theme';
 import {
-  createChat, getChat, sendMessage, updateChat,
+  createChat, getChat, sendMessageStream, updateChat,
   type Chat, type Message,
 } from '../services/chat';
 import Markdown from 'react-native-markdown-display';
@@ -24,6 +24,7 @@ export function ChatScreen({ route, navigation }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [streamingText, setStreamingText] = useState<string | null>(null);
   const [sourceCount, setSourceCount] = useState(0);
 
   const chatId = route.params?.chatId;
@@ -89,7 +90,10 @@ export function ChatScreen({ route, navigation }: Props) {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
 
     try {
-      const assistantMsg = await sendMessage(currentChat.id, text);
+      const assistantMsg = await sendMessageStream(currentChat.id, text, (delta) => {
+        setStreamingText((prev) => (prev ?? '') + delta);
+        scrollRef.current?.scrollToEnd({ animated: false });
+      });
       setMessages((prev) => [...prev, assistantMsg]);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e: any) {
@@ -104,6 +108,7 @@ export function ChatScreen({ route, navigation }: Props) {
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setSending(false);
+      setStreamingText(null);
     }
   }, [input, chat, sending, sourceNoteIds, navigation]);
 
@@ -202,10 +207,16 @@ export function ChatScreen({ route, navigation }: Props) {
             <View style={styles.aiAvatarWrap}>
               <Sparkles size={14} color={colors.aiAccent} />
             </View>
-            <View style={styles.thinkingWrap}>
-              <ActivityIndicator size="small" color={colors.aiAccent} />
-              <Text style={styles.thinkingText}>Thinking...</Text>
-            </View>
+            {streamingText ? (
+              <View style={styles.aiContent}>
+                <Markdown style={mdStyles}>{streamingText}</Markdown>
+              </View>
+            ) : (
+              <View style={styles.thinkingWrap}>
+                <ActivityIndicator size="small" color={colors.aiAccent} />
+                <Text style={styles.thinkingText}>Thinking...</Text>
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
