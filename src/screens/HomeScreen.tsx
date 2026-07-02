@@ -181,8 +181,8 @@ const styles = StyleSheet.create({
   logoutBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg,
-    paddingHorizontal: 16, paddingVertical: 12,
+    backgroundColor: colors.bgSurface,
+    borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 10,
   },
   searchInput: { flex: 1, fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textPrimary },
   section: { gap: 14 },
