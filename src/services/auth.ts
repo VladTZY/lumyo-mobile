@@ -1,4 +1,7 @@
-import { request, setToken, removeToken } from './api';
+import {
+  request, setToken, removeToken,
+  setStoredUser, removeStoredUser,
+} from './api';
 
 export interface User {
   id: number;
@@ -26,6 +29,7 @@ export async function signUp(
     false,
   );
   if (token) await setToken(token);
+  await setStoredUser(JSON.stringify(data.user));
   return data.user;
 }
 
@@ -39,6 +43,7 @@ export async function signIn(email: string, password: string): Promise<User> {
     false,
   );
   if (token) await setToken(token);
+  await setStoredUser(JSON.stringify(data.user));
   return data.user;
 }
 
@@ -47,5 +52,6 @@ export async function signOut(): Promise<void> {
     await request('/logout', { method: 'DELETE' });
   } finally {
     await removeToken();
+    await removeStoredUser();
   }
 }

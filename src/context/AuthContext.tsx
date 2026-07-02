@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getToken } from '../services/api';
+import { getToken, getStoredUser } from '../services/api';
 import { signIn, signOut, signUp, User } from '../services/auth';
 
 interface AuthContextValue {
@@ -16,14 +16,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // On mount, check if a token exists to restore session
+  // On mount, restore the session from the stored token + user record
   useEffect(() => {
-    getToken()
-      .then((token) => {
-        // Token exists but we don't have a /me endpoint,
-        // so just mark as loading done — screens handle unauthenticated state
-        if (!token) setUser(null);
+    Promise.all([getToken(), getStoredUser()])
+      .then(([token, storedUser]) => {
+        if (token && storedUser) {
+          setUser(JSON.parse(storedUser));
+        } else {
+          setUser(null);
+        }
       })
+      .catch(() => setUser(null))
       .finally(() => setIsLoading(false));
   }, []);
 

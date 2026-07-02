@@ -4,23 +4,32 @@ import * as SecureStore from 'expo-secure-store';
 export const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 const TOKEN_KEY = 'auth_token';
 
+const USER_KEY = 'auth_user';
+
 // SecureStore has no web implementation; fall back to localStorage there.
 const webStorage = Platform.OS === 'web' ? (globalThis as any).localStorage : null;
 
-export async function getToken(): Promise<string | null> {
-  if (webStorage) return webStorage.getItem(TOKEN_KEY);
-  return SecureStore.getItemAsync(TOKEN_KEY);
+async function getItem(key: string): Promise<string | null> {
+  if (webStorage) return webStorage.getItem(key);
+  return SecureStore.getItemAsync(key);
 }
 
-export async function setToken(token: string): Promise<void> {
-  if (webStorage) { webStorage.setItem(TOKEN_KEY, token); return; }
-  await SecureStore.setItemAsync(TOKEN_KEY, token);
+async function setItem(key: string, value: string): Promise<void> {
+  if (webStorage) { webStorage.setItem(key, value); return; }
+  await SecureStore.setItemAsync(key, value);
 }
 
-export async function removeToken(): Promise<void> {
-  if (webStorage) { webStorage.removeItem(TOKEN_KEY); return; }
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
+async function deleteItem(key: string): Promise<void> {
+  if (webStorage) { webStorage.removeItem(key); return; }
+  await SecureStore.deleteItemAsync(key);
 }
+
+export const getToken = () => getItem(TOKEN_KEY);
+export const setToken = (token: string) => setItem(TOKEN_KEY, token);
+export const removeToken = () => deleteItem(TOKEN_KEY);
+export const getStoredUser = () => getItem(USER_KEY);
+export const setStoredUser = (json: string) => setItem(USER_KEY, json);
+export const removeStoredUser = () => deleteItem(USER_KEY);
 
 async function request<T>(
   path: string,
