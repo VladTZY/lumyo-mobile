@@ -19,6 +19,9 @@ type Props = NativeStackScreenProps<NotesStackParamList, 'NoteEditor'>;
 
 const SUMMARY_POLL_INTERVAL = 2000;
 
+// Brings the 36px toolbar buttons up to the 44px minimum touch target.
+const TOOLBTN_HITSLOP = { top: 4, bottom: 4, left: 4, right: 4 };
+
 function wordCount(text: string) {
   return text.trim() ? text.trim().split(/\s+/).length : 0;
 }
@@ -471,30 +474,49 @@ export function NoteEditorScreen({ route, navigation }: Props) {
           <TouchableOpacity
             style={[styles.toolBtn, boldActive && styles.toolBtnActive]}
             onPress={() => applyFormat((t, s) => toggleInline(t, s, '**'))}
+            hitSlop={TOOLBTN_HITSLOP}
+            accessibilityRole="button"
+            accessibilityLabel="Bold"
+            accessibilityState={{ selected: boldActive }}
           >
             <Bold size={18} color={boldActive ? colors.textPrimary : colors.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.toolBtn, italicActive && styles.toolBtnActive]}
             onPress={() => applyFormat((t, s) => toggleInline(t, s, '*'))}
+            hitSlop={TOOLBTN_HITSLOP}
+            accessibilityRole="button"
+            accessibilityLabel="Italic"
+            accessibilityState={{ selected: italicActive }}
           >
             <Italic size={18} color={italicActive ? colors.textPrimary : colors.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.toolBtn, underlineActive && styles.toolBtnActive]}
             onPress={() => applyFormat((t, s) => toggleInline(t, s, '<u>', '</u>'))}
+            hitSlop={TOOLBTN_HITSLOP}
+            accessibilityRole="button"
+            accessibilityLabel="Underline"
+            accessibilityState={{ selected: underlineActive }}
           >
             <Underline size={18} color={underlineActive ? colors.textPrimary : colors.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.toolBtn, listActive && styles.toolBtnActive]}
             onPress={() => applyFormat(toggleList)}
+            hitSlop={TOOLBTN_HITSLOP}
+            accessibilityRole="button"
+            accessibilityLabel="Bulleted list"
+            accessibilityState={{ selected: listActive }}
           >
             <List size={18} color={listActive ? colors.textPrimary : colors.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.toolBtn}
             onPress={() => applyFormat(insertLink)}
+            hitSlop={TOOLBTN_HITSLOP}
+            accessibilityRole="button"
+            accessibilityLabel="Insert link"
           >
             <Link2 size={18} color={colors.textSecondary} />
           </TouchableOpacity>

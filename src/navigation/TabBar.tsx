@@ -32,6 +32,9 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
               style={[styles.tab, isFocused && styles.tabActive]}
               onPress={() => navigation.navigate(tab.key)}
               activeOpacity={0.8}
+              accessibilityRole="tab"
+              accessibilityLabel={tab.key}
+              accessibilityState={{ selected: isFocused }}
             >
               <tab.Icon
                 size={18}

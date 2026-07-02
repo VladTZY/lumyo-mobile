@@ -68,6 +68,8 @@ export function NotesScreen({ navigation }: Props) {
         <TouchableOpacity
           style={styles.fab}
           onPress={() => navigation.navigate('NoteEditor', { isNew: true })}
+          accessibilityRole="button"
+          accessibilityLabel="New note"
         >
           <Plus size={20} color="#FFFFFF" />
         </TouchableOpacity>

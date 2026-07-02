@@ -98,7 +98,12 @@ export function CategoriesScreen({ navigation }: Props) {
             <Text style={styles.title}>Categories</Text>
             <Text style={styles.subtitle}>Organize your knowledge into collections</Text>
           </View>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => setShowModal(true)}>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => setShowModal(true)}
+            accessibilityRole="button"
+            accessibilityLabel="New category"
+          >
             <FolderPlus size={18} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>

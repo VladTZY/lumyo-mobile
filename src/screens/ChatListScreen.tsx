@@ -79,6 +79,8 @@ export function ChatListScreen({ navigation }: Props) {
         <TouchableOpacity
           style={styles.newBtn}
           onPress={() => navigation.push('ChatMain', {})}
+          accessibilityRole="button"
+          accessibilityLabel="New chat"
         >
           <Plus size={20} color="#FFFFFF" />
         </TouchableOpacity>

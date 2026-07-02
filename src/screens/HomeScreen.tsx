@@ -66,10 +66,20 @@ export function HomeScreen(_props: Props) {
               <Text style={styles.name}>{user?.email.split('@')[0] ?? 'there'}</Text>
             </View>
             <View style={styles.headerActions}>
-              <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate('Notes', { screen: 'NoteEditor', params: { isNew: true } })}>
+              <TouchableOpacity
+                style={styles.fab}
+                onPress={() => navigation.navigate('Notes', { screen: 'NoteEditor', params: { isNew: true } })}
+                accessibilityRole="button"
+                accessibilityLabel="New note"
+              >
                 <Plus size={20} color="#FFFFFF" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+              <TouchableOpacity
+                style={styles.logoutBtn}
+                onPress={logout}
+                accessibilityRole="button"
+                accessibilityLabel="Log out"
+              >
                 <LogOut size={18} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
