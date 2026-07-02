@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+export const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 const TOKEN_KEY = 'auth_token';
 
 export async function getToken(): Promise<string | null> {
