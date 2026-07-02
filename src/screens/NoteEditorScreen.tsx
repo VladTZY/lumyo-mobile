@@ -553,7 +553,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 6,
   },
   aiBtnDisabled: { opacity: 0.6 },
-  aiBtnText: { fontFamily: fonts.inter.medium, fontSize: 11, color: colors.aiAccent },
+  aiBtnText: { fontFamily: fonts.inter.medium, fontSize: 12, color: colors.aiAccentText },
   iconCircle: {
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: colors.bgSurface,
@@ -587,11 +587,11 @@ const styles = StyleSheet.create({
   summaryHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   summaryTitle: {
     fontFamily: fonts.spaceGrotesk.semiBold,
-    fontSize: 14, color: colors.aiAccent,
+    fontSize: 14, color: colors.aiAccentText,
   },
   summaryLoading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   summaryLoadingText: {
-    fontFamily: fonts.inter.regular, fontSize: 13, color: colors.aiAccent,
+    fontFamily: fonts.inter.regular, fontSize: 13, color: colors.aiAccentText,
   },
   summaryBody: {
     fontFamily: fonts.inter.regular,
@@ -609,7 +609,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 6,
   },
   summaryActionText: {
-    fontFamily: fonts.inter.medium, fontSize: 12, color: colors.aiAccent,
+    fontFamily: fonts.inter.medium, fontSize: 12, color: colors.aiAccentText,
   },
   bodyInput: {
     fontFamily: fonts.inter.regular, fontSize: 15,

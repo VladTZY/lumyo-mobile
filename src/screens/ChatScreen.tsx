@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.aiAccentLight, borderRadius: radius.full,
     paddingHorizontal: 12, paddingVertical: 6,
   },
-  sourcesBtnText: { fontFamily: fonts.inter.medium, fontSize: 13, color: colors.aiAccent },
+  sourcesBtnText: { fontFamily: fonts.inter.medium, fontSize: 13, color: colors.aiAccentText },
 
   messages: { flex: 1 },
   messagesContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8, gap: 20 },
@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
   aiContent: { flex: 1, gap: 10 },
   aiText: { fontFamily: fonts.inter.regular, fontSize: 15, color: colors.textPrimary, lineHeight: 24 },
   thinkingWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 6 },
-  thinkingText: { fontFamily: fonts.inter.regular, fontSize: 13, color: colors.aiAccent },
+  thinkingText: { fontFamily: fonts.inter.regular, fontSize: 13, color: colors.aiAccentText },
 
   sourcesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   sourceChip: {
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.aiAccentLight, borderRadius: radius.full,
     paddingHorizontal: 10, paddingVertical: 4,
   },
-  sourceText: { fontFamily: fonts.inter.medium, fontSize: 12, color: colors.aiAccent },
+  sourceText: { fontFamily: fonts.inter.medium, fontSize: 12, color: colors.aiAccentText },
 
   inputArea: {
     flexDirection: 'row', alignItems: 'flex-end', gap: 10,
@@ -341,7 +341,7 @@ const mdStyles = StyleSheet.create({
   list_item: { marginVertical: 2 },
   code_inline: {
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    fontSize: 13, backgroundColor: colors.bgSurface, color: colors.aiAccent,
+    fontSize: 13, backgroundColor: colors.bgSurface, color: colors.aiAccentText,
     paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4,
   },
   fence: {
@@ -355,5 +355,5 @@ const mdStyles = StyleSheet.create({
   },
   hr: { backgroundColor: colors.border, height: 1, marginVertical: 12 },
   paragraph: { marginTop: 0, marginBottom: 8 },
-  link: { color: colors.aiAccent, textDecorationLine: 'underline' },
+  link: { color: colors.aiAccentText, textDecorationLine: 'underline' },
 });

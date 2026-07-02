@@ -2,6 +2,9 @@ export const colors = {
   accent: '#0D0D0D',
   accentLight: '#F0F0F0',
   aiAccent: '#7C5CFC',
+  // Darker variant for small text on light backgrounds — #7C5CFC only hits
+  // 3.9:1 on aiAccentLight, below the 4.5:1 WCAG AA floor for body sizes.
+  aiAccentText: '#6B48F0',
   aiAccentLight: '#F3F0FF',
   bgHover: '#F5F5F5',
   bgPrimary: '#FFFFFF',

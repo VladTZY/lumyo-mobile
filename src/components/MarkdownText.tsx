@@ -92,6 +92,6 @@ const s = StyleSheet.create({
   italic: { fontStyle: 'italic' },
   boldItalic: { fontFamily: fonts.inter.semiBold, fontStyle: 'italic' },
   underline: { textDecorationLine: 'underline' },
-  link: { color: colors.aiAccent },
+  link: { color: colors.aiAccentText },
   linkUrl: { color: colors.textMuted },
 });

@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8,
   },
   categorizeAllBtnDisabled: { opacity: 0.6 },
-  categorizeAllText: { fontFamily: fonts.inter.medium, fontSize: 12, color: colors.aiAccent },
+  categorizeAllText: { fontFamily: fonts.inter.medium, fontSize: 12, color: colors.aiAccentText },
   iconBtn: {
     width: 36, height: 36, borderRadius: 18,
     borderWidth: 1, borderColor: colors.border,
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
   cardMeta: { fontFamily: fonts.inter.regular, fontSize: 12, color: colors.textMuted },
   empty: { alignItems: 'center', paddingTop: 60, gap: 10 },
   emptyText: { fontFamily: fonts.inter.semiBold, fontSize: 16, color: colors.textPrimary },
-  emptyAction: { fontFamily: fonts.inter.regular, fontSize: 14, color: colors.aiAccent },
+  emptyAction: { fontFamily: fonts.inter.regular, fontSize: 14, color: colors.aiAccentText },
   // Modal
   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
