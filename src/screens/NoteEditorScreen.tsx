@@ -22,6 +22,76 @@ function wordCount(text: string) {
   return text.trim() ? text.trim().split(/\s+/).length : 0;
 }
 
+type Sel = { start: number; end: number };
+type FormatResult = { text: string; sel: Sel };
+
+function isWrappedWith(text: string, sel: Sel, open: string, close = open): boolean {
+  const selected = text.slice(sel.start, sel.end);
+  if (selected.length >= open.length + close.length && selected.startsWith(open) && selected.endsWith(close)) {
+    return true;
+  }
+  return text.slice(0, sel.start).endsWith(open) && text.slice(sel.end).startsWith(close);
+}
+
+function toggleInline(text: string, sel: Sel, open: string, close = open): FormatResult {
+  const { start, end } = sel;
+  const before = text.slice(0, start);
+  const selected = text.slice(start, end);
+  const after = text.slice(end);
+
+  if (selected.length >= open.length + close.length && selected.startsWith(open) && selected.endsWith(close)) {
+    const inner = selected.slice(open.length, selected.length - close.length);
+    return { text: before + inner + after, sel: { start, end: start + inner.length } };
+  }
+
+  // A doubled marker around the selection belongs to a different format
+  // (e.g. ** around an italic candidate is bold) — unless tripled, in which
+  // case the single marker is genuinely present too.
+  const partOfLongerMarker =
+    before.endsWith(open + open) && after.startsWith(close + close) &&
+    !(before.endsWith(open + open + open) && after.startsWith(close + close + close));
+  if (before.endsWith(open) && after.startsWith(close) && !partOfLongerMarker) {
+    return {
+      text: before.slice(0, before.length - open.length) + selected + after.slice(close.length),
+      sel: { start: start - open.length, end: end - open.length },
+    };
+  }
+
+  if (start === end) {
+    const cursor = start + open.length;
+    return { text: before + open + close + after, sel: { start: cursor, end: cursor } };
+  }
+  return {
+    text: before + open + selected + close + after,
+    sel: { start: start + open.length, end: end + open.length },
+  };
+}
+
+function toggleList(text: string, sel: Sel): FormatResult {
+  const blockStart = text.lastIndexOf('\n', sel.start - 1) + 1;
+  let blockEnd = text.indexOf('\n', sel.end);
+  if (blockEnd === -1) blockEnd = text.length;
+  const lines = text.slice(blockStart, blockEnd).split('\n');
+  const allListed = lines.every((l) => l.startsWith('- ') || !l.trim());
+  const newLines = allListed
+    ? lines.map((l) => (l.startsWith('- ') ? l.slice(2) : l))
+    : lines.map((l) => (!l.trim() || l.startsWith('- ') ? l : '- ' + l));
+  const newBlock = newLines.join('\n');
+  const delta = newLines[0].length - lines[0].length;
+  const start = Math.max(blockStart, sel.start + delta);
+  const end = Math.max(start, sel.end + (newBlock.length - (blockEnd - blockStart)));
+  return { text: text.slice(0, blockStart) + newBlock + text.slice(blockEnd), sel: { start, end } };
+}
+
+function insertLink(text: string, sel: Sel): FormatResult {
+  const selected = text.slice(sel.start, sel.end) || 'link text';
+  const urlStart = sel.start + selected.length + 3; // past "[" + text + "]("
+  return {
+    text: text.slice(0, sel.start) + `[${selected}](url)` + text.slice(sel.end),
+    sel: { start: urlStart, end: urlStart + 3 },
+  };
+}
+
 function formatDate(iso: string) {
   const d = new Date(iso);
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
@@ -45,6 +115,12 @@ export function NoteEditorScreen({ route, navigation }: Props) {
   const noteIdRef = useRef(noteId);
   const isNewRef = useRef(isNew);
   const savingRef = useRef(false);
+
+  const bodyRef = useRef<TextInput>(null);
+  const [sel, setSel] = useState<Sel>({ start: 0, end: 0 });
+  // Set transiently to move the cursor after a formatting edit, then released
+  // so the input goes back to driving its own selection.
+  const [forcedSel, setForcedSel] = useState<Sel | undefined>();
 
   const [summary, setSummary] = useState<NoteSummary | null>(null);
   const [summaryDismissed, setSummaryDismissed] = useState(false);
@@ -192,6 +268,15 @@ export function NoteEditorScreen({ route, navigation }: Props) {
     stopPolling();
   }, [stopPolling]);
 
+  const applyFormat = useCallback((transform: (text: string, sel: Sel) => FormatResult) => {
+    const result = transform(contentRef.current, sel);
+    setContent(result.text);
+    isDirty.current = true;
+    setSel(result.sel);
+    setForcedSel(result.sel);
+    bodyRef.current?.focus();
+  }, [sel]);
+
   const [categorizing, setCategorizing] = useState(false);
 
   const handleAutocategorize = useCallback(async () => {
@@ -224,6 +309,13 @@ export function NoteEditorScreen({ route, navigation }: Props) {
   const dateStr = note ? formatDate(note.updated_at) : formatDate(new Date().toISOString());
   const words = wordCount(content);
   const showSummaryCard = summary && !summaryDismissed;
+
+  const boldActive = isWrappedWith(content, sel, '**');
+  const italicActive = isWrappedWith(content, sel, '***') || (isWrappedWith(content, sel, '*') && !boldActive);
+  const underlineActive = isWrappedWith(content, sel, '<u>', '</u>');
+  const listActive = content
+    .slice(content.lastIndexOf('\n', sel.start - 1) + 1)
+    .startsWith('- ');
 
   return (
     <KeyboardAvoidingView
@@ -340,9 +432,15 @@ export function NoteEditorScreen({ route, navigation }: Props) {
 
         {/* Body */}
         <TextInput
+          ref={bodyRef}
           style={styles.bodyInput}
           value={content}
           onChangeText={(t) => { setContent(t); isDirty.current = true; }}
+          selection={forcedSel}
+          onSelectionChange={(e) => {
+            setSel(e.nativeEvent.selection);
+            if (forcedSel) setForcedSel(undefined);
+          }}
           placeholder="Start writing..."
           placeholderTextColor={colors.textMuted}
           multiline
@@ -354,11 +452,36 @@ export function NoteEditorScreen({ route, navigation }: Props) {
       {/* Footer */}
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <View style={styles.toolbarLeft}>
-          <TouchableOpacity style={styles.toolBtn}><Bold size={18} color={colors.textPrimary} /></TouchableOpacity>
-          <TouchableOpacity style={styles.toolBtn}><Italic size={18} color={colors.textSecondary} /></TouchableOpacity>
-          <TouchableOpacity style={styles.toolBtn}><Underline size={18} color={colors.textSecondary} /></TouchableOpacity>
-          <TouchableOpacity style={styles.toolBtn}><List size={18} color={colors.textSecondary} /></TouchableOpacity>
-          <TouchableOpacity style={styles.toolBtn}><Link2 size={18} color={colors.textSecondary} /></TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toolBtn, boldActive && styles.toolBtnActive]}
+            onPress={() => applyFormat((t, s) => toggleInline(t, s, '**'))}
+          >
+            <Bold size={18} color={boldActive ? colors.textPrimary : colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toolBtn, italicActive && styles.toolBtnActive]}
+            onPress={() => applyFormat((t, s) => toggleInline(t, s, '*'))}
+          >
+            <Italic size={18} color={italicActive ? colors.textPrimary : colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toolBtn, underlineActive && styles.toolBtnActive]}
+            onPress={() => applyFormat((t, s) => toggleInline(t, s, '<u>', '</u>'))}
+          >
+            <Underline size={18} color={underlineActive ? colors.textPrimary : colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toolBtn, listActive && styles.toolBtnActive]}
+            onPress={() => applyFormat(toggleList)}
+          >
+            <List size={18} color={listActive ? colors.textPrimary : colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.toolBtn}
+            onPress={() => applyFormat(insertLink)}
+          >
+            <Link2 size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
         </View>
         <Text style={styles.wordCount}>{words} words</Text>
         <TouchableOpacity
@@ -465,6 +588,7 @@ const styles = StyleSheet.create({
     width: 36, height: 36, borderRadius: radius.sm,
     alignItems: 'center', justifyContent: 'center',
   },
+  toolBtnActive: { backgroundColor: colors.accentLight },
   wordCount: { fontFamily: fonts.inter.regular, fontSize: 11, color: colors.textMuted },
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
