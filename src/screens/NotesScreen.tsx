@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Alert, RefreshControl,
 } from 'react-native';
-import { Plus, Search, ChevronRight } from 'lucide-react-native';
+import { Plus, Search, ChevronRight, FileText } from 'lucide-react-native';
 import { colors, fonts, radius } from '../theme';
 import { stripMarkdown } from '../components/MarkdownText';
 import { getNotes, type Note } from '../services/notes';
@@ -90,11 +90,26 @@ export function NotesScreen({ navigation }: Props) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {filtered.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>
-              {query ? 'No notes match your search.' : 'No notes yet.'}
-            </Text>
-          </View>
+          query ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>No notes match your search.</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconWrap}>
+                <FileText size={24} color={colors.textSecondary} />
+              </View>
+              <Text style={styles.emptyTitle}>No notes yet</Text>
+              <Text style={styles.emptySubtitle}>Capture your first thought and let AI organize it</Text>
+              <TouchableOpacity
+                style={styles.emptyCta}
+                onPress={() => navigation.navigate('NoteEditor', { isNew: true })}
+              >
+                <Plus size={16} color="#FFFFFF" />
+                <Text style={styles.emptyCtaText}>New Note</Text>
+              </TouchableOpacity>
+            </View>
+          )
         ) : (
           filtered.map((note) => (
             <TouchableOpacity
@@ -161,4 +176,21 @@ const styles = StyleSheet.create({
   tagText: { fontFamily: fonts.inter.medium, fontSize: 11, color: colors.textSecondary },
   empty: { alignItems: 'center', paddingTop: 60 },
   emptyText: { fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textMuted },
+  emptyState: { alignItems: 'center', gap: 8, paddingTop: 60, paddingHorizontal: 40 },
+  emptyIconWrap: {
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: colors.bgSurface,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  },
+  emptyTitle: { fontFamily: fonts.spaceGrotesk.semiBold, fontSize: 16, color: colors.textPrimary },
+  emptySubtitle: {
+    fontFamily: fonts.inter.regular, fontSize: 13, color: colors.textSecondary,
+    textAlign: 'center', lineHeight: 19,
+  },
+  emptyCta: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8,
+    backgroundColor: colors.accent, borderRadius: radius.full,
+    paddingHorizontal: 18, paddingVertical: 10,
+  },
+  emptyCtaText: { fontFamily: fonts.inter.semiBold, fontSize: 13, color: '#FFFFFF' },
 });

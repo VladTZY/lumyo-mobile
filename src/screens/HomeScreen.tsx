@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, RefreshControl,
 } from 'react-native';
-import { Plus, Search, ChevronRight, LogOut, Sparkles } from 'lucide-react-native';
+import { Plus, Search, ChevronRight, LogOut, Sparkles, FileText } from 'lucide-react-native';
 import { colors, fonts, radius } from '../theme';
 import { stripMarkdown } from '../components/MarkdownText';
 import { useAuth } from '../context/AuthContext';
@@ -95,7 +95,20 @@ export function HomeScreen(_props: Props) {
               </View>
             </View>
             {recentNotes.length === 0 ? (
-              <Text style={styles.emptyText}>No notes yet. Tap + to create one.</Text>
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconWrap}>
+                  <FileText size={24} color={colors.textSecondary} />
+                </View>
+                <Text style={styles.emptyTitle}>No notes yet</Text>
+                <Text style={styles.emptySubtitle}>Capture your first thought and let AI organize it</Text>
+                <TouchableOpacity
+                  style={styles.emptyCta}
+                  onPress={() => navigation.navigate('Notes', { screen: 'NoteEditor', params: { isNew: true } })}
+                >
+                  <Plus size={16} color="#FFFFFF" />
+                  <Text style={styles.emptyCtaText}>New Note</Text>
+                </TouchableOpacity>
+              </View>
             ) : (
               <View style={styles.notesList}>
                 {recentNotes.map((note) => (
@@ -177,7 +190,23 @@ const styles = StyleSheet.create({
   sectionTitle: { fontFamily: fonts.spaceGrotesk.semiBold, fontSize: 18, color: colors.textPrimary },
   viewAllRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   viewAll: { fontFamily: fonts.inter.regular, fontSize: 13, color: colors.textMuted },
-  emptyText: { fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textMuted },
+  emptyState: { alignItems: 'center', gap: 8, paddingVertical: 24 },
+  emptyIconWrap: {
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: colors.bgSurface,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  },
+  emptyTitle: { fontFamily: fonts.spaceGrotesk.semiBold, fontSize: 16, color: colors.textPrimary },
+  emptySubtitle: {
+    fontFamily: fonts.inter.regular, fontSize: 13, color: colors.textSecondary,
+    textAlign: 'center', lineHeight: 19,
+  },
+  emptyCta: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8,
+    backgroundColor: colors.accent, borderRadius: radius.full,
+    paddingHorizontal: 18, paddingVertical: 10,
+  },
+  emptyCtaText: { fontFamily: fonts.inter.semiBold, fontSize: 13, color: '#FFFFFF' },
   notesList: { gap: 10 },
   noteCard: {
     borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: 16, gap: 8,
