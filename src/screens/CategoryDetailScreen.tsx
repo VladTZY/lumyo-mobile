@@ -94,6 +94,7 @@ export function CategoryDetailScreen({ route, navigation }: Props) {
               onPress={() => (navigation as any).navigate('Notes', {
                 screen: 'NoteEditor',
                 params: { id: String(note.id) },
+                initial: false,
               })}
             >
               <View style={styles.itemContent}>

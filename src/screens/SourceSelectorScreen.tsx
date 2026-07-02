@@ -250,7 +250,8 @@ const styles = StyleSheet.create({
 
   bottomBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingTop: 14, paddingBottom: 30,
+    // Sits above the always-visible tab bar now, so no extra bottom inset.
+    paddingHorizontal: 20, paddingTop: 14, paddingBottom: 10,
     borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bgPrimary,
   },
   selectedCount: { fontFamily: fonts.inter.medium, fontSize: 14, color: colors.textSecondary },

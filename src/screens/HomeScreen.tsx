@@ -69,7 +69,7 @@ export function HomeScreen(_props: Props) {
             <View style={styles.headerActions}>
               <TouchableOpacity
                 style={styles.fab}
-                onPress={() => navigation.navigate('Notes', { screen: 'NoteEditor', params: { isNew: true } })}
+                onPress={() => navigation.navigate('Notes', { screen: 'NoteEditor', params: { isNew: true }, initial: false })}
                 accessibilityRole="button"
                 accessibilityLabel="New note"
               >
@@ -114,7 +114,7 @@ export function HomeScreen(_props: Props) {
                 <Text style={styles.emptySubtitle}>Capture your first thought and let AI organize it</Text>
                 <TouchableOpacity
                   style={styles.emptyCta}
-                  onPress={() => navigation.navigate('Notes', { screen: 'NoteEditor', params: { isNew: true } })}
+                  onPress={() => navigation.navigate('Notes', { screen: 'NoteEditor', params: { isNew: true }, initial: false })}
                 >
                   <Plus size={16} color="#FFFFFF" />
                   <Text style={styles.emptyCtaText}>New Note</Text>
@@ -123,7 +123,7 @@ export function HomeScreen(_props: Props) {
             ) : (
               <View style={styles.notesList}>
                 {recentNotes.map((note) => (
-                  <TouchableOpacity key={note.id} style={styles.noteCard} onPress={() => navigation.navigate('Notes', { screen: 'NoteEditor', params: { id: String(note.id) } })}>
+                  <TouchableOpacity key={note.id} style={styles.noteCard} onPress={() => navigation.navigate('Notes', { screen: 'NoteEditor', params: { id: String(note.id) }, initial: false })}>
                     <View style={styles.noteCardTop}>
                       <Text style={styles.noteTitle}>{note.title}</Text>
                       <ChevronRight size={16} color={colors.textMuted} />

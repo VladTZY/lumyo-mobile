@@ -12,10 +12,6 @@ const TABS = [
   { key: 'Chat', Icon: MessageCircle },
 ];
 
-// Focused-content screens where the tab bar would stack under the screen's
-// own footer (editor toolbar, chat input) — hide it there.
-const HIDDEN_ON = ['NoteEditor', 'ChatMain', 'SourceSelector'];
-
 export function TabBar({ state, navigation }: BottomTabBarProps) {
   const reduced = useReducedMotion();
   const [tabWidth, setTabWidth] = useState(0);
@@ -38,11 +34,6 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
       tension: 220,
     }).start();
   }, [state.index, tabWidth, reduced, translateX]);
-
-  const focusedTab = state.routes[state.index];
-  const nestedState = focusedTab.state;
-  const nestedRoute = nestedState?.routes?.[nestedState.index ?? 0];
-  if (nestedRoute && HIDDEN_ON.includes(nestedRoute.name)) return null;
 
   return (
     <View style={styles.wrapper}>
