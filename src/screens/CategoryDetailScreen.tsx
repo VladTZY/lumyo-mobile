@@ -87,10 +87,17 @@ export function CategoryDetailScreen({ route, navigation }: Props) {
           </View>
         ) : (
           notes.map((note) => (
-            <TouchableOpacity key={note.id} style={styles.item}>
+            <TouchableOpacity
+              key={note.id}
+              style={styles.item}
+              onPress={() => (navigation as any).navigate('Notes', {
+                screen: 'NoteEditor',
+                params: { id: String(note.id) },
+              })}
+            >
               <View style={styles.itemContent}>
                 <Text style={styles.itemTitle}>{note.title}</Text>
-                <Text style={styles.itemPreview} numberOfLines={2}>{note.content}</Text>
+                <Text style={styles.itemPreview} numberOfLines={2}>{stripMarkdown(note.content)}</Text>
                 <Text style={styles.itemDate}>
                   {new Date(note.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </Text>
