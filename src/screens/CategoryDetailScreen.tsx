@@ -3,8 +3,9 @@ import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   ActivityIndicator, Alert, RefreshControl,
 } from 'react-native';
-import { ChevronLeft, MoreHorizontal, Sparkles, ChevronRight } from 'lucide-react-native';
+import { ChevronLeft, MoreHorizontal, Sparkles, ChevronRight, FileText } from 'lucide-react-native';
 import { colors, fonts, radius } from '../theme';
+import { stripMarkdown } from '../components/MarkdownText';
 import { getCategory, type CategoryWithNotes } from '../services/categories';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { CategoriesStackParamList } from '../navigation/types';
@@ -77,8 +78,12 @@ export function CategoryDetailScreen({ route, navigation }: Props) {
 
         {/* Notes */}
         {notes.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>No notes in this category yet.</Text>
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconWrap}>
+              <FileText size={24} color={colors.textSecondary} />
+            </View>
+            <Text style={styles.emptyTitle}>No notes in this category</Text>
+            <Text style={styles.emptySubtitle}>Notes you add to “{title}” will show up here</Text>
           </View>
         ) : (
           notes.map((note) => (
@@ -126,6 +131,15 @@ const styles = StyleSheet.create({
   itemTitle: { fontFamily: fonts.inter.semiBold, fontSize: 14, color: colors.textPrimary },
   itemPreview: { fontFamily: fonts.inter.regular, fontSize: 13, color: colors.textSecondary, lineHeight: 19 },
   itemDate: { fontFamily: fonts.inter.regular, fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  empty: { alignItems: 'center', paddingTop: 60 },
-  emptyText: { fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textMuted },
+  emptyState: { alignItems: 'center', gap: 8, paddingTop: 60, paddingHorizontal: 40 },
+  emptyIconWrap: {
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: colors.bgSurface,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  },
+  emptyTitle: { fontFamily: fonts.spaceGrotesk.semiBold, fontSize: 16, color: colors.textPrimary },
+  emptySubtitle: {
+    fontFamily: fonts.inter.regular, fontSize: 13, color: colors.textSecondary,
+    textAlign: 'center', lineHeight: 19,
+  },
 });
