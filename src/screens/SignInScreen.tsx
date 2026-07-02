@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
   fieldGroup: { gap: 6 },
   label: { fontFamily: fonts.inter.medium, fontSize: 14, color: colors.textPrimary },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  forgot: { fontFamily: fonts.inter.medium, fontSize: 14, color: colors.aiAccent },
+  forgot: { fontFamily: fonts.inter.medium, fontSize: 14, color: colors.aiAccentText },
   inputRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
