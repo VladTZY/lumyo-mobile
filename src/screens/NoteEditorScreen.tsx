@@ -1,14 +1,15 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ChevronLeft, Sparkles,
-  Bold, Italic, Underline, List, Link2, Folder, RefreshCw, X,
+  Bold, Italic, Underline, List, Link2, Folder, RefreshCw, X, Eye, Pencil,
 } from 'lucide-react-native';
 import { colors, fonts, radius } from '../theme';
+import { NoteMarkdown } from '../components/NoteMarkdown';
 import { getNote, createNote, updateNote, autocategorizeNote, type Note } from '../services/notes';
 import { getSummary, generateSummary, type NoteSummary } from '../services/summaries';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -121,6 +122,20 @@ export function NoteEditorScreen({ route, navigation }: Props) {
   // Set transiently to move the cursor after a formatting edit, then released
   // so the input goes back to driving its own selection.
   const [forcedSel, setForcedSel] = useState<Sel | undefined>();
+  // Existing notes open rendered; new notes open straight into editing.
+  const [previewing, setPreviewing] = useState(!routeIsNew);
+
+  const startEditing = useCallback(() => {
+    setPreviewing(false);
+    setTimeout(() => bodyRef.current?.focus(), 50);
+  }, []);
+
+  const startPreviewing = useCallback(() => {
+    Keyboard.dismiss();
+    setForcedSel(undefined);
+    setSel({ start: 0, end: 0 });
+    setPreviewing(true);
+  }, []);
 
   const [summary, setSummary] = useState<NoteSummary | null>(null);
   const [summaryDismissed, setSummaryDismissed] = useState(false);
@@ -431,27 +446,47 @@ export function NoteEditorScreen({ route, navigation }: Props) {
         )}
 
         {/* Body */}
-        <TextInput
-          ref={bodyRef}
-          style={styles.bodyInput}
-          value={content}
-          onChangeText={(t) => { setContent(t); isDirty.current = true; }}
-          selection={forcedSel}
-          onSelectionChange={(e) => {
-            setSel(e.nativeEvent.selection);
-            if (forcedSel) setForcedSel(undefined);
-          }}
-          placeholder="Start writing..."
-          placeholderTextColor={colors.textMuted}
-          multiline
-          textAlignVertical="top"
-          selectionColor={colors.aiAccent}
-        />
+        {previewing ? (
+          <TouchableOpacity activeOpacity={0.8} onPress={startEditing} style={styles.previewBody}>
+            {content.trim() ? (
+              <NoteMarkdown>{content}</NoteMarkdown>
+            ) : (
+              <Text style={styles.previewPlaceholder}>Tap to start writing...</Text>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <TextInput
+            ref={bodyRef}
+            style={styles.bodyInput}
+            value={content}
+            onChangeText={(t) => { setContent(t); isDirty.current = true; }}
+            selection={forcedSel}
+            onSelectionChange={(e) => {
+              setSel(e.nativeEvent.selection);
+              if (forcedSel) setForcedSel(undefined);
+            }}
+            placeholder="Start writing..."
+            placeholderTextColor={colors.textMuted}
+            multiline
+            textAlignVertical="top"
+            selectionColor={colors.aiAccent}
+          />
+        )}
       </ScrollView>
 
       {/* Footer */}
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <View style={styles.toolbarLeft}>
+          <TouchableOpacity
+            style={styles.toolBtn}
+            onPress={previewing ? startEditing : startPreviewing}
+          >
+            {previewing
+              ? <Pencil size={18} color={colors.textPrimary} />
+              : <Eye size={18} color={colors.textSecondary} />
+            }
+          </TouchableOpacity>
+          {!previewing && (<>
           <TouchableOpacity
             style={[styles.toolBtn, boldActive && styles.toolBtnActive]}
             onPress={() => applyFormat((t, s) => toggleInline(t, s, '**'))}
@@ -482,6 +517,7 @@ export function NoteEditorScreen({ route, navigation }: Props) {
           >
             <Link2 size={18} color={colors.textSecondary} />
           </TouchableOpacity>
+          </>)}
         </View>
         <Text style={styles.wordCount}>{words} words</Text>
         <TouchableOpacity
@@ -576,6 +612,11 @@ const styles = StyleSheet.create({
   bodyInput: {
     fontFamily: fonts.inter.regular, fontSize: 15,
     color: colors.textPrimary, lineHeight: 24, minHeight: 400,
+  },
+  previewBody: { minHeight: 400 },
+  previewPlaceholder: {
+    fontFamily: fonts.inter.regular, fontSize: 15,
+    color: colors.textMuted, lineHeight: 24,
   },
   footer: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
