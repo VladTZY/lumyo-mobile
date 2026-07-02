@@ -7,9 +7,9 @@ export const colors = {
   bgPrimary: '#FFFFFF',
   bgSurface: '#FAFAFA',
   border: '#E8E8E8',
-  textMuted: '#B0B0B0',
+  textMuted: '#737373',
   textPrimary: '#0D0D0D',
-  textSecondary: '#7A7A7A',
+  textSecondary: '#5E5E5E',
 };
 
 export const fonts = {
