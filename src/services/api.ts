@@ -1,17 +1,24 @@
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 export const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 const TOKEN_KEY = 'auth_token';
 
+// SecureStore has no web implementation; fall back to localStorage there.
+const webStorage = Platform.OS === 'web' ? (globalThis as any).localStorage : null;
+
 export async function getToken(): Promise<string | null> {
+  if (webStorage) return webStorage.getItem(TOKEN_KEY);
   return SecureStore.getItemAsync(TOKEN_KEY);
 }
 
 export async function setToken(token: string): Promise<void> {
+  if (webStorage) { webStorage.setItem(TOKEN_KEY, token); return; }
   await SecureStore.setItemAsync(TOKEN_KEY, token);
 }
 
 export async function removeToken(): Promise<void> {
+  if (webStorage) { webStorage.removeItem(TOKEN_KEY); return; }
   await SecureStore.deleteItemAsync(TOKEN_KEY);
 }
 
