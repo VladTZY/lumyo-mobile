@@ -4,8 +4,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
   Inter_400Regular,
+  Inter_400Regular_Italic,
   Inter_500Medium,
   Inter_600SemiBold,
+  Inter_600SemiBold_Italic,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import {
@@ -21,8 +23,10 @@ import { colors } from './src/theme';
 export default function App() {
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
+    Inter_400Regular_Italic,
     Inter_500Medium,
     Inter_600SemiBold,
+    Inter_600SemiBold_Italic,
     Inter_700Bold,
     SpaceGrotesk_400Regular,
     SpaceGrotesk_500Medium,

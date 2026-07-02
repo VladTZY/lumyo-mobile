@@ -24,8 +24,12 @@ export const fonts = {
   },
   inter: {
     regular: 'Inter_400Regular',
+    // Real italic faces — iOS does not synthesize italics for custom fonts,
+    // so fontStyle: 'italic' alone renders upright with Inter.
+    italic: 'Inter_400Regular_Italic',
     medium: 'Inter_500Medium',
     semiBold: 'Inter_600SemiBold',
+    semiBoldItalic: 'Inter_600SemiBold_Italic',
     bold: 'Inter_700Bold',
   },
 };

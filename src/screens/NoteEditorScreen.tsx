@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ChevronLeft, Sparkles,
-  Bold, Italic, Underline, List, Link2, Folder, RefreshCw, X,
+  Bold, Italic, Underline, Folder, RefreshCw, X,
 } from 'lucide-react-native';
 import { colors, fonts, radius } from '../theme';
 import { MarkdownText } from '../components/MarkdownText';
@@ -30,12 +30,34 @@ function wordCount(text: string) {
 type Sel = { start: number; end: number };
 type FormatResult = { text: string; sel: Sel };
 
+function escapeForRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function isWrappedWith(text: string, sel: Sel, open: string, close = open): boolean {
   const selected = text.slice(sel.start, sel.end);
   if (selected.length >= open.length + close.length && selected.startsWith(open) && selected.endsWith(close)) {
     return true;
   }
-  return text.slice(0, sel.start).endsWith(open) && text.slice(sel.end).startsWith(close);
+  if (text.slice(0, sel.start).endsWith(open) && text.slice(sel.end).startsWith(close)) {
+    return true;
+  }
+  // Caret (or selection) resting strictly inside an already-formatted span,
+  // not touching the markers themselves — e.g. the caret placed mid-word
+  // after tapping into "**bold**". Walk every non-overlapping open...close
+  // pair left-to-right and check whether the caret/selection falls inside
+  // one of them, so the toolbar highlight reflects "inside a formatted
+  // span" the same way it does for an exact marker-touching selection.
+  const pairPattern = new RegExp(`${escapeForRegExp(open)}([\\s\\S]*?)${escapeForRegExp(close)}`, 'g');
+  let pair: RegExpExecArray | null;
+  while ((pair = pairPattern.exec(text))) {
+    const innerStart = pair.index + open.length;
+    const innerEnd = pair.index + pair[0].length - close.length;
+    if (innerStart < innerEnd && sel.start >= innerStart && sel.end <= innerEnd) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function toggleInline(text: string, sel: Sel, open: string, close = open): FormatResult {
@@ -80,29 +102,72 @@ function toggleInline(text: string, sel: Sel, open: string, close = open): Forma
   };
 }
 
-function toggleList(text: string, sel: Sel): FormatResult {
-  const blockStart = text.lastIndexOf('\n', sel.start - 1) + 1;
-  let blockEnd = text.indexOf('\n', sel.end);
-  if (blockEnd === -1) blockEnd = text.length;
-  const lines = text.slice(blockStart, blockEnd).split('\n');
-  const allListed = lines.every((l) => l.startsWith('- ') || !l.trim());
-  const newLines = allListed
-    ? lines.map((l) => (l.startsWith('- ') ? l.slice(2) : l))
-    : lines.map((l) => (!l.trim() || l.startsWith('- ') ? l : '- ' + l));
-  const newBlock = newLines.join('\n');
-  const delta = newLines[0].length - lines[0].length;
-  const start = Math.max(blockStart, sel.start + delta);
-  const end = Math.max(start, sel.end + (newBlock.length - (blockEnd - blockStart)));
-  return { text: text.slice(0, blockStart) + newBlock + text.slice(blockEnd), sel: { start, end } };
-}
+// Bullet-list lines (in existing notes) start with this glyph; Enter on one
+// continues the list, Enter on an empty item ends it.
+const BULLET = '• ';
 
-function insertLink(text: string, sel: Sel): FormatResult {
-  const selected = text.slice(sel.start, sel.end) || 'link text';
-  const urlStart = sel.start + selected.length + 3; // past "[" + text + "]("
-  return {
-    text: text.slice(0, sel.start) + `[${selected}](url)` + text.slice(sel.end),
-    sel: { start: urlStart, end: urlStart + 3 },
-  };
+// Spans MarkdownText styles within a single line. A newline typed inside one
+// would strand the closing marker on the next line and break the styling.
+const INLINE_SPAN = /(\*{1,3})([^*\n]+?)\1|<u>([^\n]*?)<\/u>/g;
+
+// Adjusts a just-typed newline the way Apple Notes behaves: a span the caret
+// was inside is closed before the break (and reopened after it when span text
+// continues), bullet lines continue the list, and an empty bullet item ends
+// it. Returns null when the change is not a single typed newline or needs no
+// adjustment.
+function processNewline(oldText: string, newText: string): FormatResult | null {
+  if (newText.length !== oldText.length + 1) return null;
+  let p = 0;
+  while (p < oldText.length && oldText[p] === newText[p]) p++;
+  if (newText[p] !== '\n' || oldText.slice(p) !== newText.slice(p + 1)) return null;
+
+  const lineStart = oldText.lastIndexOf('\n', p - 1) + 1;
+  let lineEnd = oldText.indexOf('\n', p);
+  if (lineEnd === -1) lineEnd = oldText.length;
+  const line = oldText.slice(lineStart, lineEnd);
+
+  // Enter on an empty bullet item removes the bullet and ends the list.
+  if (oldText.slice(lineStart, p) === BULLET && p === lineEnd) {
+    return { text: oldText.slice(0, lineStart) + oldText.slice(p), sel: { start: lineStart, end: lineStart } };
+  }
+
+  // Newline inside a styled span: close the span before the break, reopen it
+  // after when its text continues on the next line.
+  const re = new RegExp(INLINE_SPAN.source, 'g');
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(line))) {
+    const open = m[1] !== undefined ? m[1] : '<u>';
+    const close = m[1] !== undefined ? m[1] : '</u>';
+    const matchStart = lineStart + m.index;
+    const matchEnd = matchStart + m[0].length;
+    const innerStart = matchStart + open.length;
+    const innerEnd = matchEnd - close.length;
+    if (p < innerStart || p > innerEnd) continue;
+
+    const left = oldText.slice(innerStart, p);
+    const right = oldText.slice(p, innerEnd);
+    const before = oldText.slice(0, matchStart);
+    const text =
+      before +
+      (left ? open + left + close : '') +
+      '\n' +
+      (right ? open + right + close : '') +
+      oldText.slice(matchEnd);
+    const cursor =
+      before.length + (left ? open.length + left.length + close.length : 0) + 1 + (right ? open.length : 0);
+    return { text, sel: { start: cursor, end: cursor } };
+  }
+
+  // Enter on a bullet line continues the list on the next line.
+  if (line.startsWith(BULLET) && p >= lineStart + BULLET.length) {
+    const cursor = p + 1 + BULLET.length;
+    return {
+      text: newText.slice(0, p + 1) + BULLET + newText.slice(p + 1),
+      sel: { start: cursor, end: cursor },
+    };
+  }
+
+  return null;
 }
 
 function formatDate(iso: string) {
@@ -214,6 +279,7 @@ export function NoteEditorScreen({ route, navigation }: Props) {
   }, [navigation]);
 
   const save = useCallback(async () => {
+    Keyboard.dismiss();
     if (!title.trim()) {
       Alert.alert('Title required', 'Please add a title before saving.');
       return;
@@ -326,9 +392,6 @@ export function NoteEditorScreen({ route, navigation }: Props) {
   const boldActive = isWrappedWith(content, sel, '**');
   const italicActive = isWrappedWith(content, sel, '***') || (isWrappedWith(content, sel, '*') && !boldActive);
   const underlineActive = isWrappedWith(content, sel, '<u>', '</u>');
-  const listActive = content
-    .slice(content.lastIndexOf('\n', sel.start - 1) + 1)
-    .startsWith('- ');
 
   return (
     <KeyboardAvoidingView
@@ -390,6 +453,7 @@ export function NoteEditorScreen({ route, navigation }: Props) {
           placeholder="Note title"
           placeholderTextColor={colors.textMuted}
           multiline
+          rejectResponderTermination={false}
           selectionColor={colors.aiAccent}
         />
 
@@ -451,7 +515,17 @@ export function NoteEditorScreen({ route, navigation }: Props) {
           ref={bodyRef}
           style={styles.bodyInput}
           value={Platform.OS === 'web' ? content : undefined}
-          onChangeText={(t) => { setContent(t); isDirty.current = true; }}
+          onChangeText={(t) => {
+            isDirty.current = true;
+            const adjusted = processNewline(contentRef.current, t);
+            if (adjusted) {
+              setContent(adjusted.text);
+              setSel(adjusted.sel);
+              setForcedSel(adjusted.sel);
+            } else {
+              setContent(t);
+            }
+          }}
           selection={forcedSel}
           onSelectionChange={(e) => {
             setSel(e.nativeEvent.selection);
@@ -460,6 +534,15 @@ export function NoteEditorScreen({ route, navigation }: Props) {
           placeholder="Start writing..."
           placeholderTextColor={colors.textMuted}
           multiline
+          // Let the outer ScrollView own the drag gesture — a focused
+          // multiline TextInput otherwise swallows it and the note can't be
+          // scrolled while the keyboard is up. The input grows with its
+          // content, so it never needs to scroll itself.
+          scrollEnabled={false}
+          // Makes the focus-press cancelable on iOS: a drag that turns into a
+          // scroll no longer focuses the input and pops the keyboard — only a
+          // clean tap does.
+          rejectResponderTermination={false}
           textAlignVertical="top"
           selectionColor={colors.aiAccent}
         >
@@ -470,7 +553,7 @@ export function NoteEditorScreen({ route, navigation }: Props) {
       </ScrollView>
 
       {/* Footer */}
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+      <View style={styles.footer}>
         <View style={styles.toolbarLeft}>
           <TouchableOpacity
             style={[styles.toolBtn, boldActive && styles.toolBtnActive]}
@@ -501,25 +584,6 @@ export function NoteEditorScreen({ route, navigation }: Props) {
             accessibilityState={{ selected: underlineActive }}
           >
             <Underline size={18} color={underlineActive ? colors.textPrimary : colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toolBtn, listActive && styles.toolBtnActive]}
-            onPress={() => applyFormat(toggleList)}
-            hitSlop={TOOLBTN_HITSLOP}
-            accessibilityRole="button"
-            accessibilityLabel="Bulleted list"
-            accessibilityState={{ selected: listActive }}
-          >
-            <List size={18} color={listActive ? colors.textPrimary : colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.toolBtn}
-            onPress={() => applyFormat(insertLink)}
-            hitSlop={TOOLBTN_HITSLOP}
-            accessibilityRole="button"
-            accessibilityLabel="Insert link"
-          >
-            <Link2 size={18} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
         <Text style={styles.wordCount}>{words} words</Text>
@@ -620,7 +684,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: colors.bgSurface,
     borderTopWidth: 1, borderTopColor: colors.border,
-    paddingHorizontal: 20, paddingTop: 10,
+    // Constant padding rather than the home-indicator inset: the inset reads
+    // as a hole under the toolbar both with the keyboard up and down. Matches
+    // ChatScreen's input row.
+    paddingHorizontal: 20, paddingTop: 10, paddingBottom: 10,
   },
   toolbarLeft: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   toolBtn: {
