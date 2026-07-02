@@ -89,10 +89,10 @@ export function HomeScreen(_props: Props) {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Recent Notes</Text>
-              <View style={styles.viewAllRow}>
+              <TouchableOpacity style={styles.viewAllRow} onPress={() => navigation.navigate('Notes', { screen: 'NotesMain' })}>
                 <Text style={styles.viewAll}>View all</Text>
                 <ChevronRight size={14} color={colors.textMuted} />
-              </View>
+              </TouchableOpacity>
             </View>
             {recentNotes.length === 0 ? (
               <View style={styles.emptyState}>
@@ -141,14 +141,21 @@ export function HomeScreen(_props: Props) {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Categories</Text>
-                <View style={styles.viewAllRow}>
+                <TouchableOpacity style={styles.viewAllRow} onPress={() => navigation.navigate('Categories', { screen: 'CategoriesMain' })}>
                   <Text style={styles.viewAll}>View all</Text>
                   <ChevronRight size={14} color={colors.textMuted} />
-                </View>
+                </TouchableOpacity>
               </View>
               <View style={styles.categoryGrid}>
                 {categories.slice(0, 3).map((cat) => (
-                  <TouchableOpacity key={cat.id} style={styles.categoryCard}>
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={styles.categoryCard}
+                    onPress={() => navigation.navigate('Categories', {
+                      screen: 'CategoryDetail',
+                      params: { id: String(cat.id), title: cat.title },
+                    })}
+                  >
                     <View style={styles.categoryIcon}>
                       <Sparkles size={18} color={colors.aiAccent} />
                     </View>
