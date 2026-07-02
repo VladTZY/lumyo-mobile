@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Plus, Search, ChevronRight, LogOut, Sparkles } from 'lucide-react-native';
 import { colors, fonts, radius } from '../theme';
+import { stripMarkdown } from '../components/MarkdownText';
 import { useAuth } from '../context/AuthContext';
 import { getNotes, type Note } from '../services/notes';
 import { getCategories, type Category } from '../services/categories';
@@ -103,7 +104,7 @@ export function HomeScreen(_props: Props) {
                       <Text style={styles.noteTitle}>{note.title}</Text>
                       <ChevronRight size={16} color={colors.textMuted} />
                     </View>
-                    <Text style={styles.notePreview} numberOfLines={2}>{note.content}</Text>
+                    <Text style={styles.notePreview} numberOfLines={2}>{stripMarkdown(note.content)}</Text>
                     <View style={styles.noteFooter}>
                       <Text style={styles.noteDate}>
                         {new Date(note.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
