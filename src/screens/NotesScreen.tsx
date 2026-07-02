@@ -6,6 +6,7 @@ import {
 import { Plus, Search, ChevronRight, FileText } from 'lucide-react-native';
 import { colors, fonts, radius } from '../theme';
 import { stripMarkdown } from '../components/MarkdownText';
+import { FadeSlideIn } from '../components/FadeSlideIn';
 import { getNotes, type Note } from '../services/notes';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NotesStackParamList } from '../navigation/types';
@@ -97,7 +98,7 @@ export function NotesScreen({ navigation }: Props) {
               <Text style={styles.emptyText}>No notes match your search.</Text>
             </View>
           ) : (
-            <View style={styles.emptyState}>
+            <FadeSlideIn style={styles.emptyState}>
               <View style={styles.emptyIconWrap}>
                 <FileText size={24} color={colors.textSecondary} />
               </View>
@@ -110,7 +111,7 @@ export function NotesScreen({ navigation }: Props) {
                 <Plus size={16} color="#FFFFFF" />
                 <Text style={styles.emptyCtaText}>New Note</Text>
               </TouchableOpacity>
-            </View>
+            </FadeSlideIn>
           )
         ) : (
           filtered.map((note) => (

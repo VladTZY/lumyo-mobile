@@ -6,6 +6,7 @@ import {
 import { Plus, Search, ChevronRight, LogOut, Sparkles, FileText } from 'lucide-react-native';
 import { colors, fonts, radius } from '../theme';
 import { stripMarkdown } from '../components/MarkdownText';
+import { FadeSlideIn } from '../components/FadeSlideIn';
 import { useAuth } from '../context/AuthContext';
 import { getNotes, type Note } from '../services/notes';
 import { getCategories, type Category } from '../services/categories';
@@ -105,7 +106,7 @@ export function HomeScreen(_props: Props) {
               </TouchableOpacity>
             </View>
             {recentNotes.length === 0 ? (
-              <View style={styles.emptyState}>
+              <FadeSlideIn style={styles.emptyState}>
                 <View style={styles.emptyIconWrap}>
                   <FileText size={24} color={colors.textSecondary} />
                 </View>
@@ -118,7 +119,7 @@ export function HomeScreen(_props: Props) {
                   <Plus size={16} color="#FFFFFF" />
                   <Text style={styles.emptyCtaText}>New Note</Text>
                 </TouchableOpacity>
-              </View>
+              </FadeSlideIn>
             ) : (
               <View style={styles.notesList}>
                 {recentNotes.map((note) => (

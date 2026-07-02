@@ -10,6 +10,7 @@ import {
 } from 'lucide-react-native';
 import { colors, fonts, radius } from '../theme';
 import { MarkdownText } from '../components/MarkdownText';
+import { FadeSlideIn } from '../components/FadeSlideIn';
 import { getNote, createNote, updateNote, autocategorizeNote, type Note } from '../services/notes';
 import { getSummary, generateSummary, type NoteSummary } from '../services/summaries';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -408,7 +409,7 @@ export function NoteEditorScreen({ route, navigation }: Props) {
 
         {/* AI Summary card */}
         {showSummaryCard && (
-          <View style={styles.summaryCard}>
+          <FadeSlideIn style={styles.summaryCard}>
             <View style={styles.summaryHeader}>
               <Sparkles size={16} color={colors.aiAccent} />
               <Text style={styles.summaryTitle}>AI Summary</Text>
@@ -439,7 +440,7 @@ export function NoteEditorScreen({ route, navigation }: Props) {
                 </TouchableOpacity>
               </View>
             )}
-          </View>
+          </FadeSlideIn>
         )}
 
         {/* Body — children (not value) so nested Text spans style the

@@ -6,6 +6,7 @@ import {
 import { ChevronLeft, MoreHorizontal, Sparkles, ChevronRight, FileText } from 'lucide-react-native';
 import { colors, fonts, radius } from '../theme';
 import { stripMarkdown } from '../components/MarkdownText';
+import { FadeSlideIn } from '../components/FadeSlideIn';
 import { getCategory, type CategoryWithNotes } from '../services/categories';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { CategoriesStackParamList } from '../navigation/types';
@@ -78,13 +79,13 @@ export function CategoryDetailScreen({ route, navigation }: Props) {
 
         {/* Notes */}
         {notes.length === 0 ? (
-          <View style={styles.emptyState}>
+          <FadeSlideIn style={styles.emptyState}>
             <View style={styles.emptyIconWrap}>
               <FileText size={24} color={colors.textSecondary} />
             </View>
             <Text style={styles.emptyTitle}>No notes in this category</Text>
             <Text style={styles.emptySubtitle}>Notes you add to “{title}” will show up here</Text>
-          </View>
+          </FadeSlideIn>
         ) : (
           notes.map((note) => (
             <TouchableOpacity
