@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Plus, Search, ChevronRight } from 'lucide-react-native';
 import { colors, fonts, radius } from '../theme';
-import { stripMarkdown } from '../components/NoteMarkdown';
+import { stripMarkdown } from '../components/MarkdownText';
 import { getNotes, type Note } from '../services/notes';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NotesStackParamList } from '../navigation/types';
