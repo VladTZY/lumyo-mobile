@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Plus, Search, ChevronRight } from 'lucide-react-native';
 import { colors, fonts, radius } from '../theme';
+import { stripMarkdown } from '../components/NoteMarkdown';
 import { getNotes, type Note } from '../services/notes';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NotesStackParamList } from '../navigation/types';
@@ -103,7 +104,7 @@ export function NotesScreen({ navigation }: Props) {
             >
               <View style={styles.noteContent}>
                 <Text style={styles.noteTitle}>{note.title}</Text>
-                <Text style={styles.notePreview} numberOfLines={2}>{note.content}</Text>
+                <Text style={styles.notePreview} numberOfLines={2}>{stripMarkdown(note.content)}</Text>
                 <View style={styles.noteMeta}>
                   <Text style={styles.noteDate}>
                     {new Date(note.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
