@@ -440,10 +440,13 @@ export function NoteEditorScreen({ route, navigation }: Props) {
         )}
 
         {/* Body — children (not value) so nested Text spans style the
-            markdown live while the underlying string stays editable */}
+            markdown live while the underlying string stays editable.
+            react-native-web can't render children inside a textarea, so web
+            falls back to a plain controlled value. */}
         <TextInput
           ref={bodyRef}
           style={styles.bodyInput}
+          value={Platform.OS === 'web' ? content : undefined}
           onChangeText={(t) => { setContent(t); isDirty.current = true; }}
           selection={forcedSel}
           onSelectionChange={(e) => {
@@ -456,7 +459,9 @@ export function NoteEditorScreen({ route, navigation }: Props) {
           textAlignVertical="top"
           selectionColor={colors.aiAccent}
         >
-          {content.length > 0 ? <MarkdownText text={content} /> : undefined}
+          {Platform.OS !== 'web' && content.length > 0
+            ? <MarkdownText text={content} />
+            : undefined}
         </TextInput>
       </ScrollView>
 
