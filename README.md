@@ -69,10 +69,27 @@ src/
 ├── navigation/      # Navigators, tab bar, route types
 ├── screens/         # Sign in/up, Home, Categories, Notes, Chat, etc.
 ├── services/        # API client + feature services (auth, categories, notes, chat, summaries)
-└── theme/           # Colors, fonts, radii
+└── theme/           # Light and dark palettes, fonts, radii, ThemeProvider
 ```
 
 Navigation is gated on auth state in `src/navigation/index.tsx`: unauthenticated users see the **Auth** stack; authenticated users land in the bottom-tab app (**Home**, **Categories**, **Notes**, **Chat**).
+
+## Theming
+
+The app has a light and a dark palette with the same token names, taken from `brand-identity/DESIGN.md`. Both live in `src/theme/index.ts`, which holds plain constants only, so tests can load it in Node.
+
+`ThemeProvider` in `src/theme/ThemeContext.tsx` picks the palette. The choice is set in **Settings → Appearance** (System, Light or Dark) and saved with `expo-secure-store`, or `localStorage` on web. `app.json` sets `userInterfaceStyle` to `automatic`, which System needs to follow the device.
+
+In a component, read colors through the hook and build styles from a module-level factory:
+
+```tsx
+const { colors } = useTheme();
+const styles = useStyles(makeStyles);
+
+const makeStyles = (colors: Colors) => StyleSheet.create({ ... });
+```
+
+Shared pieces (headers, buttons, fields, empty states, citation chips) are in `src/components/ui.tsx`. The logo is in `src/components/Logo.tsx`, drawn from the vector files in `logos/final/svg`.
 
 ## Authentication
 
