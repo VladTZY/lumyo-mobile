@@ -5,6 +5,7 @@ export type AuthStackParamList = {
 
 export type HomeStackParamList = {
   HomeMain: undefined;
+  Settings: undefined;
 };
 
 export type CategoriesStackParamList = {
@@ -13,7 +14,7 @@ export type CategoriesStackParamList = {
 };
 
 export type NotesStackParamList = {
-  NotesMain: undefined;
+  NotesMain: { focusSearch?: boolean } | undefined;
   NoteEditor: { id?: string; isNew?: boolean };
 };
 

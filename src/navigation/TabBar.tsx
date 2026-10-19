@@ -2,17 +2,21 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Home, Folder, FileText, MessageCircle } from 'lucide-react-native';
-import { colors } from '../theme';
+import type { Colors } from '../theme';
+import { useStyles, useTheme } from '../theme/ThemeContext';
 import { useReducedMotion } from '../components/FadeSlideIn';
 
+// root: the first screen of each tab's stack, used when re-tapping a tab.
 const TABS = [
-  { key: 'Home', Icon: Home },
-  { key: 'Categories', Icon: Folder },
-  { key: 'Notes', Icon: FileText },
-  { key: 'Chat', Icon: MessageCircle },
+  { key: 'Home', root: 'HomeMain', Icon: Home },
+  { key: 'Categories', root: 'CategoriesMain', Icon: Folder },
+  { key: 'Notes', root: 'NotesMain', Icon: FileText },
+  { key: 'Chat', root: 'ChatList', Icon: MessageCircle },
 ];
 
 export function TabBar({ state, navigation }: BottomTabBarProps) {
+  const { colors } = useTheme();
+  const styles = useStyles(makeStyles);
   const reduced = useReducedMotion();
   const [tabWidth, setTabWidth] = useState(0);
   const translateX = useRef(new Animated.Value(0)).current;
@@ -50,7 +54,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
         {TABS.map((tab, index) => {
           const isFocused = state.index === index;
           // Icons cross-fade in step with the sliding pill so the active
-          // (white) icon never sits on the white background mid-flight.
+          // (on-ink) icon never sits on the page background mid-flight.
           const activeOpacity = tabWidth > 0
             ? translateX.interpolate({
                 inputRange: [(index - 1) * tabWidth, index * tabWidth, (index + 1) * tabWidth],
@@ -69,17 +73,21 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
             <TouchableOpacity
               key={tab.key}
               style={styles.tab}
-              onPress={() => navigation.navigate(tab.key)}
+              onPress={() => {
+                // Re-tapping the active tab returns to the root of its stack.
+                if (isFocused) navigation.navigate(tab.key, { screen: tab.root });
+                else navigation.navigate(tab.key);
+              }}
               activeOpacity={0.8}
               accessibilityRole="tab"
               accessibilityLabel={tab.key}
               accessibilityState={{ selected: isFocused }}
             >
               <Animated.View style={{ opacity: inactiveOpacity }}>
-                <tab.Icon size={18} color={colors.textMuted} />
+                <tab.Icon size={20} color={colors.textMuted} strokeWidth={1.75} />
               </Animated.View>
               <Animated.View style={[StyleSheet.absoluteFill, styles.iconOverlay, { opacity: activeOpacity }]}>
-                <tab.Icon size={18} color="#FFFFFF" />
+                <tab.Icon size={20} color={colors.onInk} strokeWidth={2} />
               </Animated.View>
             </TouchableOpacity>
           );
@@ -89,16 +97,16 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) => StyleSheet.create({
   wrapper: {
-    paddingHorizontal: 21,
-    paddingTop: 12,
-    paddingBottom: 21,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 20,
     backgroundColor: colors.bgPrimary,
   },
   pill: {
     flexDirection: 'row',
-    backgroundColor: colors.bgPrimary,
+    backgroundColor: colors.bgSurface,
     borderRadius: 28,
     borderWidth: 1,
     borderColor: colors.border,
@@ -111,7 +119,7 @@ const styles = StyleSheet.create({
     top: 4,
     bottom: 4,
     borderRadius: 22,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.ink,
   },
   tab: {
     flex: 1,

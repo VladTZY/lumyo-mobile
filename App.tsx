@@ -1,5 +1,4 @@
-import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator } from 'react-native';
+import { View, useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
@@ -18,9 +17,11 @@ import {
 } from '@expo-google-fonts/space-grotesk';
 import { AppNavigator } from './src/navigation';
 import { AuthProvider } from './src/context/AuthContext';
-import { colors } from './src/theme';
+import { ThemeProvider } from './src/theme/ThemeContext';
+import { palettes } from './src/theme';
 
 export default function App() {
+  const systemScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_400Regular_Italic,
@@ -35,19 +36,17 @@ export default function App() {
   });
 
   if (!fontsLoaded) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgPrimary }}>
-        <ActivityIndicator color={colors.aiAccent} />
-      </View>
-    );
+    // Plain page color while fonts load, so the splash hands off without a flash.
+    return <View style={{ flex: 1, backgroundColor: palettes[systemScheme].bgPrimary }} />;
   }
 
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <StatusBar style="dark" />
-        <AppNavigator />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppNavigator />
+        </AuthProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

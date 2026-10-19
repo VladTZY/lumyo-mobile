@@ -47,9 +47,9 @@ for (const marker of [
   );
 }
 
-// Lines 392-394 (1-indexed): the toolbar active-state computation, verbatim.
-const ACTIVE_START = 392;
-const ACTIVE_END = 394;
+// Lines 386-388 (1-indexed): the toolbar active-state computation, verbatim.
+const ACTIVE_START = 386;
+const ACTIVE_END = 388;
 const activeSrc = allLines.slice(ACTIVE_START - 1, ACTIVE_END).join('\n');
 for (const marker of ['boldActive', 'italicActive', 'underlineActive']) {
   assert.ok(

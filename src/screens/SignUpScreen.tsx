@@ -1,19 +1,27 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+  View, Text, TextInput, Pressable, StyleSheet,
+  ScrollView, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
-import { Sun, User, Mail, Lock, Eye, EyeOff, CheckSquare, Square } from 'lucide-react-native';
-import { colors, fonts, radius } from '../theme';
+import { Mail, Lock, Eye, EyeOff, Check } from 'lucide-react-native';
+import { fonts, type Colors } from '../theme';
+import { useStyles, useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { Logo } from '../components/Logo';
+import { Button, TextField } from '../components/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
 
+// Matches config.password_length in the server's Devise initializer.
+const MIN_PASSWORD = 6;
+
 export function SignUpScreen({ navigation }: Props) {
   const { register } = useAuth();
-  const [name, setName] = useState('');
+  const { colors } = useTheme();
+  const styles = useStyles(makeStyles);
+  const passwordRef = useRef<TextInput>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -22,22 +30,22 @@ export function SignUpScreen({ navigation }: Props) {
 
   const handleSignUp = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields.');
+      Alert.alert('Email and password needed', 'Enter both to create your account.');
+      return;
+    }
+    if (password.length < MIN_PASSWORD) {
+      Alert.alert('Password too short', `Use at least ${MIN_PASSWORD} characters.`);
       return;
     }
     if (!agreed) {
-      Alert.alert('Error', 'Please agree to the Terms & Privacy Policy.');
-      return;
-    }
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters.');
+      Alert.alert('Accept the terms to continue', 'Tick the box to agree to the Terms and Privacy Policy.');
       return;
     }
     try {
       setLoading(true);
       await register(email.trim(), password, password);
     } catch (e: any) {
-      Alert.alert('Sign Up Failed', e.message);
+      Alert.alert("Couldn't create your account", e.message);
     } finally {
       setLoading(false);
     }
@@ -53,124 +61,102 @@ export function SignUpScreen({ navigation }: Props) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Logo */}
-        <View style={styles.logoBlock}>
-          <View style={styles.logoIcon}>
-            <Sun size={28} color="#FFFFFF" />
-          </View>
-          <Text style={styles.appName}>Create Account</Text>
-          <Text style={styles.subtitle}>Start organizing your notes with AI.</Text>
+        <View style={styles.intro}>
+          <Logo height={34} style={styles.logo} />
+          <Text style={styles.title} accessibilityRole="header">Create your account</Text>
+          <Text style={styles.subtitle}>Write notes, then ask them questions. Every answer shows its source.</Text>
         </View>
 
         <View style={styles.form}>
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Full Name</Text>
-            <View style={styles.inputRow}>
-              <User size={16} color={colors.textMuted} />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your full name"
-                placeholderTextColor={colors.textMuted}
-                value={name}
-                onChangeText={setName}
-              />
+          <TextField
+            label="Email"
+            icon={Mail}
+            placeholder="you@university.edu"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            textContentType="emailAddress"
+            returnKeyType="next"
+            value={email}
+            onChangeText={setEmail}
+            onSubmitEditing={() => passwordRef.current?.focus()}
+          />
+
+          <View style={styles.passwordGroup}>
+            <TextField
+              ref={passwordRef}
+              label="Password"
+              icon={Lock}
+              placeholder="Create a password"
+              secureTextEntry={!showPassword}
+              autoComplete="new-password"
+              textContentType="newPassword"
+              value={password}
+              onChangeText={setPassword}
+              trailing={
+                <Pressable
+                  onPress={() => setShowPassword(!showPassword)}
+                  hitSlop={12}
+                  accessibilityRole="button"
+                  accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword
+                    ? <Eye size={17} color={colors.textMuted} strokeWidth={1.75} />
+                    : <EyeOff size={17} color={colors.textMuted} strokeWidth={1.75} />}
+                </Pressable>
+              }
+            />
+            <Text style={styles.hint}>At least {MIN_PASSWORD} characters</Text>
+          </View>
+
+          <Pressable
+            style={styles.checkRow}
+            onPress={() => setAgreed(!agreed)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: agreed }}
+          >
+            <View style={[styles.checkbox, agreed && styles.checkboxOn]}>
+              {agreed ? <Check size={14} color={colors.onAccent} strokeWidth={2.5} /> : null}
             </View>
-          </View>
+            <Text style={styles.checkText}>I agree to the Terms and Privacy Policy</Text>
+          </Pressable>
 
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Email</Text>
-            <View style={styles.inputRow}>
-              <Mail size={16} color={colors.textMuted} />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={email}
-                onChangeText={setEmail}
-              />
-            </View>
-          </View>
+          <Button title="Create account" onPress={handleSignUp} loading={loading} />
+        </View>
 
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.inputRow}>
-              <Lock size={16} color={colors.textMuted} />
-              <TextInput
-                style={styles.input}
-                placeholder="Create a password"
-                placeholderTextColor={colors.textMuted}
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={setPassword}
-              />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                {showPassword
-                  ? <Eye size={16} color={colors.textMuted} />
-                  : <EyeOff size={16} color={colors.textMuted} />
-                }
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.hint}>Must be at least 8 characters</Text>
-          </View>
-
-          <TouchableOpacity style={styles.checkRow} onPress={() => setAgreed(!agreed)}>
-            {agreed
-              ? <CheckSquare size={18} color={colors.accent} />
-              : <Square size={18} color={colors.textMuted} />
-            }
-            <Text style={styles.checkText}>I agree to the Terms & Privacy Policy</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleSignUp} disabled={loading}>
-            {loading
-              ? <ActivityIndicator color="#FFFFFF" />
-              : <Text style={styles.primaryBtnText}>Create Account</Text>
-            }
-          </TouchableOpacity>
-
-          <View style={styles.switchRow}>
-            <Text style={styles.switchText}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('SignIn')}>
-              <Text style={styles.switchLink}>Sign In</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.switchRow}>
+          <Text style={styles.switchText}>Already have an account?</Text>
+          <Pressable onPress={() => navigation.navigate('SignIn')} hitSlop={10} accessibilityRole="link">
+            <Text style={styles.switchLink}>Sign in</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bgPrimary },
-  container: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingBottom: 40 },
-  logoBlock: { alignItems: 'center', paddingTop: 24, paddingBottom: 32 },
-  logoIcon: {
-    width: 64, height: 64, borderRadius: 18,
-    backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
-    marginBottom: 16,
+  container: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40, gap: 32 },
+  intro: { gap: 8 },
+  logo: { marginBottom: 28, marginLeft: -4 },
+  title: {
+    fontFamily: fonts.spaceGrotesk.semiBold, fontSize: 32, lineHeight: 38,
+    letterSpacing: -0.64, color: colors.textPrimary,
   },
-  appName: { fontFamily: fonts.spaceGrotesk.semiBold, fontSize: 26, color: colors.textPrimary },
-  subtitle: { fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textSecondary, marginTop: 6 },
-  form: { gap: 14 },
-  fieldGroup: { gap: 6 },
-  label: { fontFamily: fonts.inter.medium, fontSize: 14, color: colors.textPrimary },
-  inputRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
-    paddingHorizontal: 14, paddingVertical: 13,
+  subtitle: { fontFamily: fonts.inter.regular, fontSize: 15, lineHeight: 22, color: colors.textMuted },
+  form: { gap: 18 },
+  passwordGroup: { gap: 8 },
+  hint: { fontFamily: fonts.inter.regular, fontSize: 13, color: colors.textMuted },
+  checkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 },
+  checkbox: {
+    width: 22, height: 22, borderRadius: 6,
+    borderWidth: 1.5, borderColor: colors.borderStrong,
+    alignItems: 'center', justifyContent: 'center',
   },
-  input: { flex: 1, fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textPrimary },
-  hint: { fontFamily: fonts.inter.regular, fontSize: 12, color: colors.textMuted },
-  checkRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  checkText: { fontFamily: fonts.inter.regular, fontSize: 13, color: colors.textSecondary, flex: 1 },
-  primaryBtn: {
-    backgroundColor: colors.accent, borderRadius: radius.md,
-    paddingVertical: 15, alignItems: 'center', marginTop: 4,
-  },
-  primaryBtnText: { fontFamily: fonts.inter.semiBold, fontSize: 15, color: '#FFFFFF' },
-  switchRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 4 },
-  switchText: { fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textSecondary },
+  checkboxOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  checkText: { flex: 1, fontFamily: fonts.inter.regular, fontSize: 14, lineHeight: 20, color: colors.textSecondary },
+  switchRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
+  switchText: { fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textMuted },
   switchLink: { fontFamily: fonts.inter.semiBold, fontSize: 14, color: colors.textPrimary },
 });

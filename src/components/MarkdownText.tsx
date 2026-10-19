@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, StyleSheet } from 'react-native';
-import { colors, fonts } from '../theme';
+import { fonts } from '../theme';
 
 // Bold/italic (*, **, ***), underline (<u>…</u>), and bare asterisk runs
 // (e.g. the freshly-inserted empty pair "****" before the user has typed
@@ -88,7 +88,8 @@ const s = StyleSheet.create({
   // round-tripping depend on this), but are collapsed to take no visible
   // space — this hides them from view without stripping them from the string.
   marker: { fontSize: 0, color: 'transparent' },
-  bullet: { color: colors.textPrimary },
+  // Inherits the input's text color, so it follows light and dark themes.
+  bullet: {},
   bold: { fontFamily: fonts.inter.semiBold },
   italic: { fontFamily: fonts.inter.italic },
   boldItalic: { fontFamily: fonts.inter.semiBoldItalic },

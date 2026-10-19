@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  ActivityIndicator, Alert, RefreshControl,
+  View, Text, Pressable, StyleSheet, ScrollView, Alert, RefreshControl,
 } from 'react-native';
-import { ChevronLeft, MoreHorizontal, Sparkles, ChevronRight, FileText } from 'lucide-react-native';
-import { colors, fonts, radius } from '../theme';
+import { Folder, Inbox, ChevronRight, FileText } from 'lucide-react-native';
+import { fonts, radius, type Colors } from '../theme';
+import { useStyles, useTheme } from '../theme/ThemeContext';
 import { stripMarkdown } from '../components/MarkdownText';
-import { FadeSlideIn } from '../components/FadeSlideIn';
+import { BackButton, CenteredSpinner, EmptyState } from '../components/ui';
 import { getCategory, type CategoryWithNotes } from '../services/categories';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { CategoriesStackParamList } from '../navigation/types';
@@ -15,9 +15,12 @@ type Props = NativeStackScreenProps<CategoriesStackParamList, 'CategoryDetail'>;
 
 export function CategoryDetailScreen({ route, navigation }: Props) {
   const { id, title } = route.params;
+  const { colors } = useTheme();
+  const styles = useStyles(makeStyles);
   const [category, setCategory] = useState<CategoryWithNotes | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const isUncategorized = id === '0';
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -25,7 +28,7 @@ export function CategoryDetailScreen({ route, navigation }: Props) {
       const data = await getCategory(Number(id));
       setCategory(data);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert("Couldn't load this category", e.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -39,116 +42,96 @@ export function CategoryDetailScreen({ route, navigation }: Props) {
     load(true);
   };
 
-  if (loading) {
-    return (
-      <View style={styles.root}>
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.aiAccent} />
-        </View>
-      </View>
-    );
-  }
-
   const notes = category?.notes ?? [];
 
   return (
     <View style={styles.root}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {/* Top bar */}
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <ChevronLeft size={20} color={colors.textPrimary} />
-            <Text style={styles.backText}>Categories</Text>
-          </TouchableOpacity>
-          <MoreHorizontal size={18} color={colors.textPrimary} />
-        </View>
+      <View style={styles.topBar}>
+        <BackButton label="Categories" onPress={() => navigation.goBack()} />
+      </View>
 
-        {/* Title */}
-        <View style={styles.titleRow}>
-          <View style={styles.titleIcon}>
-            <Sparkles size={22} color={colors.aiAccent} />
-          </View>
-          <Text style={styles.title}>{title}</Text>
-        </View>
-        <Text style={styles.meta}>{notes.length} note{notes.length !== 1 ? 's' : ''}</Text>
-
-        {/* Notes */}
-        {notes.length === 0 ? (
-          <FadeSlideIn style={styles.emptyState}>
-            <View style={styles.emptyIconWrap}>
-              <FileText size={24} color={colors.textSecondary} />
+      {loading ? <CenteredSpinner /> : (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textMuted} colors={[colors.accent]} />
+          }
+        >
+          <View style={styles.titleBlock}>
+            <View style={[styles.titleIcon, isUncategorized && styles.titleIconMuted]}>
+              {isUncategorized
+                ? <Inbox size={22} color={colors.textMuted} strokeWidth={1.75} />
+                : <Folder size={22} color={colors.citationText} strokeWidth={1.75} />}
             </View>
-            <Text style={styles.emptyTitle}>No notes in this category</Text>
-            <Text style={styles.emptySubtitle}>Notes you add to “{title}” will show up here</Text>
-          </FadeSlideIn>
-        ) : (
-          notes.map((note) => (
-            <TouchableOpacity
-              key={note.id}
-              style={styles.item}
-              onPress={() => (navigation as any).navigate('Notes', {
-                screen: 'NoteEditor',
-                params: { id: String(note.id) },
-                initial: false,
-              })}
-            >
-              <View style={styles.itemContent}>
-                <Text style={styles.itemTitle}>{note.title}</Text>
-                <Text style={styles.itemPreview} numberOfLines={2}>{stripMarkdown(note.content)}</Text>
-                <Text style={styles.itemDate}>
-                  {new Date(note.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                </Text>
-              </View>
-              <ChevronRight size={16} color={colors.textMuted} />
-            </TouchableOpacity>
-          ))
-        )}
-      </ScrollView>
+            <Text style={styles.title} accessibilityRole="header">{title}</Text>
+            <Text style={styles.meta}>{notes.length} {notes.length === 1 ? 'note' : 'notes'}</Text>
+          </View>
+
+          {notes.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title="Nothing here yet"
+              body={`Notes that Lumyo files under “${title}” will show up here.`}
+            />
+          ) : (
+            <View style={styles.list}>
+              {notes.map((note, i) => (
+                <Pressable
+                  key={note.id}
+                  style={({ pressed }) => [styles.item, i > 0 && styles.itemDivider, pressed && styles.itemPressed]}
+                  onPress={() => (navigation as any).navigate('Notes', {
+                    screen: 'NoteEditor',
+                    params: { id: String(note.id) },
+                    initial: false,
+                  })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open note ${note.title}`}
+                >
+                  <View style={styles.itemContent}>
+                    <Text style={styles.itemTitle} numberOfLines={1}>{note.title}</Text>
+                    <Text style={styles.itemPreview} numberOfLines={2}>{stripMarkdown(note.content)}</Text>
+                    <Text style={styles.itemDate}>
+                      {new Date(note.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </Text>
+                  </View>
+                  <ChevronRight size={16} color={colors.textMuted} />
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bgPrimary },
+  topBar: { paddingHorizontal: 20, paddingTop: 4 },
   scroll: { flex: 1 },
-  content: { paddingBottom: 24, gap: 16 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  topBar: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 8,
-  },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  backText: { fontFamily: fonts.inter.medium, fontSize: 14, color: colors.textPrimary },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20 },
+  content: { paddingBottom: 32, gap: 20 },
+  titleBlock: { paddingHorizontal: 20, paddingTop: 8, gap: 6 },
   titleIcon: {
-    width: 40, height: 40, borderRadius: radius.md,
-    backgroundColor: colors.aiAccentLight, alignItems: 'center', justifyContent: 'center',
+    width: 44, height: 44, borderRadius: radius.md, marginBottom: 8,
+    backgroundColor: colors.citationBg, alignItems: 'center', justifyContent: 'center',
   },
-  title: { fontFamily: fonts.spaceGrotesk.semiBold, fontSize: 24, color: colors.textPrimary, flex: 1 },
-  meta: { fontFamily: fonts.inter.regular, fontSize: 12, color: colors.textMuted, paddingHorizontal: 20 },
-  item: {
-    flexDirection: 'row', alignItems: 'center',
-    marginHorizontal: 20, gap: 12,
-    borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 14,
+  titleIconMuted: { backgroundColor: colors.bgHover },
+  title: {
+    fontFamily: fonts.spaceGrotesk.semiBold, fontSize: 28, lineHeight: 34,
+    letterSpacing: -0.56, color: colors.textPrimary,
   },
+  meta: { fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textMuted },
+  list: {
+    marginHorizontal: 20, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.lg, overflow: 'hidden', backgroundColor: colors.bgSurface,
+  },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
+  itemDivider: { borderTopWidth: 1, borderTopColor: colors.border },
+  itemPressed: { backgroundColor: colors.bgHover },
   itemContent: { flex: 1, gap: 4 },
-  itemTitle: { fontFamily: fonts.inter.semiBold, fontSize: 14, color: colors.textPrimary },
-  itemPreview: { fontFamily: fonts.inter.regular, fontSize: 13, color: colors.textSecondary, lineHeight: 19 },
+  itemTitle: { fontFamily: fonts.inter.semiBold, fontSize: 15, color: colors.textPrimary },
+  itemPreview: { fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textSecondary, lineHeight: 20 },
   itemDate: { fontFamily: fonts.inter.regular, fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  emptyState: { alignItems: 'center', gap: 8, paddingTop: 60, paddingHorizontal: 40 },
-  emptyIconWrap: {
-    width: 52, height: 52, borderRadius: 26,
-    backgroundColor: colors.bgSurface,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
-  },
-  emptyTitle: { fontFamily: fonts.spaceGrotesk.semiBold, fontSize: 16, color: colors.textPrimary },
-  emptySubtitle: {
-    fontFamily: fonts.inter.regular, fontSize: 13, color: colors.textSecondary,
-    textAlign: 'center', lineHeight: 19,
-  },
 });

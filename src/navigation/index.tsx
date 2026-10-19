@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, ActivityIndicator } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, DefaultTheme, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useAuth } from '../context/AuthContext';
-import { colors } from '../theme';
+import { useTheme } from '../theme/ThemeContext';
 
 import { SignInScreen } from '../screens/SignInScreen';
 import { SignUpScreen } from '../screens/SignUpScreen';
@@ -17,6 +18,7 @@ import { NoteEditorScreen } from '../screens/NoteEditorScreen';
 import { ChatListScreen } from '../screens/ChatListScreen';
 import { ChatScreen } from '../screens/ChatScreen';
 import { SourceSelectorScreen } from '../screens/SourceSelectorScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
 import { TabBar } from './TabBar';
 
 import type {
@@ -36,6 +38,7 @@ function HomeNavigator() {
   return (
     <HomeStack.Navigator screenOptions={{ headerShown: false }}>
       <HomeStack.Screen name="HomeMain" component={HomeScreen} />
+      <HomeStack.Screen name="Settings" component={SettingsScreen} />
     </HomeStack.Navigator>
   );
 }
@@ -93,18 +96,39 @@ function AuthNavigator() {
 
 export function AppNavigator() {
   const { user, isLoading } = useAuth();
+  const { colors, scheme } = useTheme();
+
+  // Card and screen backgrounds come from here, so transitions never flash
+  // the library's default white in dark mode.
+  const navTheme = useMemo<Theme>(() => {
+    const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        primary: colors.accent,
+        background: colors.bgPrimary,
+        card: colors.bgPrimary,
+        text: colors.textPrimary,
+        border: colors.border,
+        notification: colors.accent,
+      },
+    };
+  }, [scheme, colors]);
 
   if (isLoading) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgPrimary }}>
-        <ActivityIndicator color={colors.aiAccent} />
+        <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+        <ActivityIndicator color={colors.accentText} />
       </View>
     );
   }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgPrimary }} edges={['top']}>
-      <NavigationContainer>
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+      <NavigationContainer theme={navTheme}>
         <Root.Navigator screenOptions={{ headerShown: false }}>
           {user ? (
             <Root.Screen name="Main" component={TabNavigator} />

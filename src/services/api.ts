@@ -24,12 +24,16 @@ async function deleteItem(key: string): Promise<void> {
   await SecureStore.deleteItemAsync(key);
 }
 
+const APPEARANCE_KEY = 'appearance';
+
 export const getToken = () => getItem(TOKEN_KEY);
 export const setToken = (token: string) => setItem(TOKEN_KEY, token);
 export const removeToken = () => deleteItem(TOKEN_KEY);
 export const getStoredUser = () => getItem(USER_KEY);
 export const setStoredUser = (json: string) => setItem(USER_KEY, json);
 export const removeStoredUser = () => deleteItem(USER_KEY);
+export const getStoredAppearance = () => getItem(APPEARANCE_KEY);
+export const setStoredAppearance = (value: string) => setItem(APPEARANCE_KEY, value);
 
 async function request<T>(
   path: string,

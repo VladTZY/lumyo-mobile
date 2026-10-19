@@ -4,11 +4,11 @@ import {
   ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  ChevronLeft, Sparkles,
-  Bold, Italic, Underline, Folder, RefreshCw, X,
-} from 'lucide-react-native';
-import { colors, fonts, radius } from '../theme';
+import { Bold, Italic, Underline, Folder, RefreshCw, X, ScrollText } from 'lucide-react-native';
+import { fonts, radius, type Colors } from '../theme';
+import { useStyles, useTheme } from '../theme/ThemeContext';
+import { LogoMark } from '../components/Logo';
+import { BackButton, CenteredSpinner } from '../components/ui';
 import { MarkdownText } from '../components/MarkdownText';
 import { FadeSlideIn } from '../components/FadeSlideIn';
 import { getNote, createNote, updateNote, autocategorizeNote, type Note } from '../services/notes';
@@ -178,6 +178,8 @@ function formatDate(iso: string) {
 
 export function NoteEditorScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { colors, scheme } = useTheme();
+  const styles = useStyles(makeStyles);
   const { id: routeId, isNew: routeIsNew } = route.params;
   const [noteId, setNoteId] = useState(routeId);
   const [isNew, setIsNew] = useState(routeIsNew);
@@ -374,15 +376,7 @@ export function NoteEditorScreen({ route, navigation }: Props) {
     }
   }, [noteId]);
 
-  if (loading) {
-    return (
-      <View style={styles.root}>
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.aiAccent} />
-        </View>
-      </View>
-    );
-  }
+  if (loading) return <View style={styles.root}><CenteredSpinner /></View>;
 
   const category = note?.categories?.[0];
   const dateStr = note ? formatDate(note.updated_at) : formatDate(new Date().toISOString());
@@ -402,10 +396,7 @@ export function NoteEditorScreen({ route, navigation }: Props) {
 
       {/* Top bar */}
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
-          <ChevronLeft size={22} color={colors.textPrimary} />
-          <Text style={styles.backText}>Notes</Text>
-        </TouchableOpacity>
+        <BackButton label="Notes" onPress={handleBack} />
         <View style={styles.topActions}>
           <TouchableOpacity
             style={[styles.aiBtn, categorizing && styles.aiBtnDisabled]}
@@ -413,12 +404,12 @@ export function NoteEditorScreen({ route, navigation }: Props) {
             disabled={categorizing}
           >
             {categorizing ? (
-              <ActivityIndicator size={14} color={colors.aiAccent} />
+              <ActivityIndicator size="small" color={colors.citationText} />
             ) : (
-              <Folder size={14} color={colors.aiAccent} />
+              <Folder size={14} color={colors.citationText} strokeWidth={1.75} />
             )}
             <Text style={styles.aiBtnText}>
-              {categorizing ? 'Categorizing…' : 'Auto-tag'}
+              {categorizing ? 'Filing…' : 'File it'}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -427,12 +418,12 @@ export function NoteEditorScreen({ route, navigation }: Props) {
             disabled={summarizing}
           >
             {summarizing ? (
-              <ActivityIndicator size={14} color={colors.aiAccent} />
+              <ActivityIndicator size="small" color={colors.citationText} />
             ) : (
-              <Sparkles size={14} color={colors.aiAccent} />
+              <ScrollText size={14} color={colors.citationText} strokeWidth={1.75} />
             )}
             <Text style={styles.aiBtnText}>
-              {summarizing ? 'Generating…' : summary ? 'Resummarize' : 'Summarize'}
+              {summarizing ? 'Summarizing…' : 'Summarize'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -450,18 +441,20 @@ export function NoteEditorScreen({ route, navigation }: Props) {
           style={styles.titleInput}
           value={title}
           onChangeText={(t) => { setTitle(t); isDirty.current = true; }}
-          placeholder="Note title"
+          placeholder="Title"
           placeholderTextColor={colors.textMuted}
           multiline
           rejectResponderTermination={false}
-          selectionColor={colors.aiAccent}
+          selectionColor={colors.accent}
+          keyboardAppearance={scheme}
+          accessibilityLabel="Note title"
         />
 
         {/* Meta row */}
         <View style={styles.metaRow}>
           {category && (
             <View style={styles.catTag}>
-              <Folder size={12} color={colors.textSecondary} />
+              <Folder size={12} color={colors.textSecondary} strokeWidth={1.75} />
               <Text style={styles.catTagText}>{category.title}</Text>
             </View>
           )}
@@ -475,18 +468,18 @@ export function NoteEditorScreen({ route, navigation }: Props) {
         {showSummaryCard && (
           <FadeSlideIn style={styles.summaryCard}>
             <View style={styles.summaryHeader}>
-              <Sparkles size={16} color={colors.aiAccent} />
-              <Text style={styles.summaryTitle}>AI Summary</Text>
+              <LogoMark size={15} />
+              <Text style={styles.summaryTitle}>Summary</Text>
             </View>
 
             {summary.status === 'pending' || summary.status === 'generating' ? (
               <View style={styles.summaryLoading}>
-                <ActivityIndicator size="small" color={colors.aiAccent} />
-                <Text style={styles.summaryLoadingText}>Generating summary…</Text>
+                <ActivityIndicator size="small" color={colors.citationText} />
+                <Text style={styles.summaryLoadingText}>Reading this note…</Text>
               </View>
             ) : summary.status === 'failed' ? (
               <Text style={styles.summaryError}>
-                {summary.error_message || 'Failed to generate summary.'}
+                {summary.error_message || "Couldn't summarize this note. Try again."}
               </Text>
             ) : (
               <Text style={styles.summaryBody}>{summary.content}</Text>
@@ -494,13 +487,13 @@ export function NoteEditorScreen({ route, navigation }: Props) {
 
             {(summary.status === 'completed' || summary.status === 'failed') && (
               <View style={styles.summaryActions}>
-                <TouchableOpacity style={styles.summaryActionBtn} onPress={handleResummarize}>
-                  <RefreshCw size={12} color={colors.aiAccent} />
-                  <Text style={styles.summaryActionText}>Resummarize</Text>
+                <TouchableOpacity style={styles.summaryActionBtn} onPress={handleResummarize} accessibilityRole="button">
+                  <RefreshCw size={13} color={colors.citationText} strokeWidth={1.75} />
+                  <Text style={styles.summaryActionText}>Summarize again</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.summaryActionBtn} onPress={handleDismiss}>
-                  <X size={12} color={colors.aiAccent} />
-                  <Text style={styles.summaryActionText}>Dismiss</Text>
+                <TouchableOpacity style={styles.summaryActionBtn} onPress={handleDismiss} accessibilityRole="button">
+                  <X size={13} color={colors.citationText} strokeWidth={1.75} />
+                  <Text style={styles.summaryActionText}>Hide</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -531,8 +524,10 @@ export function NoteEditorScreen({ route, navigation }: Props) {
             setSel(e.nativeEvent.selection);
             if (forcedSel) setForcedSel(undefined);
           }}
-          placeholder="Start writing..."
+          placeholder="Start writing…"
           placeholderTextColor={colors.textMuted}
+          keyboardAppearance={scheme}
+          accessibilityLabel="Note text"
           multiline
           // Let the outer ScrollView own the drag gesture — a focused
           // multiline TextInput otherwise swallows it and the note can't be
@@ -544,7 +539,7 @@ export function NoteEditorScreen({ route, navigation }: Props) {
           // clean tap does.
           rejectResponderTermination={false}
           textAlignVertical="top"
-          selectionColor={colors.aiAccent}
+          selectionColor={colors.accent}
         >
           {Platform.OS !== 'web' && content.length > 0
             ? <MarkdownText text={content} />
@@ -586,14 +581,14 @@ export function NoteEditorScreen({ route, navigation }: Props) {
             <Underline size={18} color={underlineActive ? colors.textPrimary : colors.textSecondary} />
           </TouchableOpacity>
         </View>
-        <Text style={styles.wordCount}>{words} words</Text>
+        <Text style={styles.wordCount}>{words} {words === 1 ? 'word' : 'words'}</Text>
         <TouchableOpacity
           style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
           onPress={save}
           disabled={saving}
         >
           {saving
-            ? <ActivityIndicator size={14} color="#FFFFFF" />
+            ? <ActivityIndicator size="small" color={colors.onAccent} />
             : <Text style={styles.saveBtnText}>Save</Text>
           }
         </TouchableOpacity>
@@ -602,39 +597,32 @@ export function NoteEditorScreen({ route, navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bgPrimary },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   topBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingTop: 4, paddingBottom: 12,
+    paddingHorizontal: 20, paddingTop: 4, paddingBottom: 8,
   },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  backText: { fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textSecondary },
-  topActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   aiBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: colors.aiAccentLight, borderRadius: radius.full,
-    paddingHorizontal: 12, paddingVertical: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36,
+    backgroundColor: colors.citationBg, borderRadius: radius.full,
+    paddingHorizontal: 12,
   },
   aiBtnDisabled: { opacity: 0.6 },
-  aiBtnText: { fontFamily: fonts.inter.medium, fontSize: 12, color: colors.aiAccentText },
-  iconCircle: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: colors.bgSurface,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  aiBtnText: { fontFamily: fonts.inter.semiBold, fontSize: 13, color: colors.citationText },
   scroll: { flex: 1 },
-  editorContent: { paddingHorizontal: 20, paddingBottom: 20, gap: 16 },
+  editorContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 14 },
   titleInput: {
     fontFamily: fonts.spaceGrotesk.semiBold,
-    fontSize: 22, color: colors.textPrimary,
-    lineHeight: 30, letterSpacing: -0.3,
+    fontSize: 28, color: colors.textPrimary,
+    lineHeight: 34, letterSpacing: -0.56, padding: 0,
   },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   catTag: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: colors.accentLight, borderRadius: radius.full,
+    backgroundColor: colors.bgHover, borderRadius: radius.full,
     paddingHorizontal: 10, paddingVertical: 4,
   },
   catTagText: { fontFamily: fonts.inter.medium, fontSize: 12, color: colors.textSecondary },
@@ -642,48 +630,45 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: colors.border },
   // Summary card
   summaryCard: {
-    backgroundColor: '#F3F0FF',
+    backgroundColor: colors.citationBg,
     borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: '#D4C8FF',
     padding: 16,
-    gap: 12,
+    gap: 10,
   },
   summaryHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   summaryTitle: {
     fontFamily: fonts.spaceGrotesk.semiBold,
-    fontSize: 14, color: colors.aiAccentText,
+    fontSize: 14, color: colors.citationText,
   },
   summaryLoading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   summaryLoadingText: {
-    fontFamily: fonts.inter.regular, fontSize: 13, color: colors.aiAccentText,
+    fontFamily: fonts.inter.regular, fontSize: 14, color: colors.citationText,
   },
   summaryBody: {
     fontFamily: fonts.inter.regular,
-    fontSize: 13, color: '#4A3580', lineHeight: 20,
+    fontSize: 15, color: colors.textPrimary, lineHeight: 23,
   },
   summaryError: {
     fontFamily: fonts.inter.regular,
-    fontSize: 13, color: '#E53E3E',
+    fontSize: 14, lineHeight: 20, color: colors.danger,
   },
-  summaryActions: { flexDirection: 'row', gap: 10 },
+  summaryActions: { flexDirection: 'row', gap: 4, marginLeft: -8 },
   summaryActionBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderRadius: radius.sm,
-    borderWidth: 1, borderColor: colors.aiAccent,
-    paddingHorizontal: 12, paddingVertical: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderRadius: radius.sm, minHeight: 36,
+    paddingHorizontal: 8,
   },
   summaryActionText: {
-    fontFamily: fonts.inter.medium, fontSize: 12, color: colors.aiAccentText,
+    fontFamily: fonts.inter.semiBold, fontSize: 13, color: colors.citationText,
   },
   bodyInput: {
-    fontFamily: fonts.inter.regular, fontSize: 15,
-    color: colors.textPrimary, lineHeight: 24, minHeight: 400,
+    fontFamily: fonts.inter.regular, fontSize: 16,
+    color: colors.textPrimary, lineHeight: 26, minHeight: 400, padding: 0,
   },
   footer: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: colors.bgSurface,
-    borderTopWidth: 1, borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderStrong,
     // Constant padding rather than the home-indicator inset: the inset reads
     // as a hole under the toolbar both with the keyboard up and down. Matches
     // ChatScreen's input row.
@@ -694,13 +679,13 @@ const styles = StyleSheet.create({
     width: 36, height: 36, borderRadius: radius.sm,
     alignItems: 'center', justifyContent: 'center',
   },
-  toolBtnActive: { backgroundColor: colors.accentLight },
-  wordCount: { fontFamily: fonts.inter.regular, fontSize: 11, color: colors.textMuted },
+  toolBtnActive: { backgroundColor: colors.bgHover },
+  wordCount: { fontFamily: fonts.inter.regular, fontSize: 12, color: colors.textMuted, fontVariant: ['tabular-nums'] },
   saveBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: colors.accent, borderRadius: radius.full,
-    paddingHorizontal: 14, paddingVertical: 7,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: colors.accent, borderRadius: radius.md,
+    paddingHorizontal: 18, minHeight: 36, minWidth: 72,
   },
   saveBtnDisabled: { opacity: 0.6 },
-  saveBtnText: { fontFamily: fonts.inter.semiBold, fontSize: 12, color: '#FFFFFF' },
+  saveBtnText: { fontFamily: fonts.inter.semiBold, fontSize: 14, color: colors.onAccent },
 });

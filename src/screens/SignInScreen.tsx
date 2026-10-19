@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+  View, Text, TextInput, Pressable, StyleSheet,
+  ScrollView, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
-import { Sun, Mail, Lock, Eye, EyeOff, Globe } from 'lucide-react-native';
-import { colors, fonts, spacing, radius } from '../theme';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { fonts, type Colors } from '../theme';
+import { useStyles, useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { Logo } from '../components/Logo';
+import { Button, TextField } from '../components/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../navigation/types';
 
@@ -13,6 +16,9 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'SignIn'>;
 
 export function SignInScreen({ navigation }: Props) {
   const { login } = useAuth();
+  const { colors } = useTheme();
+  const styles = useStyles(makeStyles);
+  const passwordRef = useRef<TextInput>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -20,14 +26,14 @@ export function SignInScreen({ navigation }: Props) {
 
   const handleSignIn = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please enter your email and password.');
+      Alert.alert('Email and password needed', 'Enter both to sign in.');
       return;
     }
     try {
       setLoading(true);
       await login(email.trim(), password);
     } catch (e: any) {
-      Alert.alert('Sign In Failed', e.message);
+      Alert.alert("Couldn't sign in", e.message);
     } finally {
       setLoading(false);
     }
@@ -43,134 +49,86 @@ export function SignInScreen({ navigation }: Props) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Logo */}
-        <View style={styles.logoBlock}>
-          <View style={styles.logoIcon}>
-            <Sun size={28} color="#FFFFFF" />
-          </View>
-          <Text style={styles.appName}>Lumyo</Text>
-          <Text style={styles.subtitle}>Welcome back. Sign in to continue.</Text>
+        <View style={styles.intro}>
+          <Logo height={34} style={styles.logo} />
+          <Text style={styles.title} accessibilityRole="header">Welcome back</Text>
+          <Text style={styles.subtitle}>Sign in to pick up where your notes left off.</Text>
         </View>
 
-        {/* Form */}
         <View style={styles.form}>
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Email</Text>
-            <View style={styles.inputRow}>
-              <Mail size={16} color={colors.textMuted} />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={email}
-                onChangeText={setEmail}
-              />
-            </View>
-          </View>
+          <TextField
+            label="Email"
+            icon={Mail}
+            placeholder="you@university.edu"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            textContentType="emailAddress"
+            returnKeyType="next"
+            value={email}
+            onChangeText={setEmail}
+            onSubmitEditing={() => passwordRef.current?.focus()}
+          />
 
-          <View style={styles.fieldGroup}>
-            <View style={styles.labelRow}>
-              <Text style={styles.label}>Password</Text>
-              <TouchableOpacity>
-                <Text style={styles.forgot}>Forgot?</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.inputRow}>
-              <Lock size={16} color={colors.textMuted} />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your password"
-                placeholderTextColor={colors.textMuted}
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={setPassword}
-              />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                {showPassword
-                  ? <Eye size={16} color={colors.textMuted} />
-                  : <EyeOff size={16} color={colors.textMuted} />
-                }
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleSignIn} disabled={loading}>
-            {loading
-              ? <ActivityIndicator color="#FFFFFF" />
-              : <Text style={styles.primaryBtnText}>Sign In</Text>
+          <TextField
+            ref={passwordRef}
+            label="Password"
+            icon={Lock}
+            labelRight={
+              <Pressable hitSlop={10} accessibilityRole="button">
+                <Text style={styles.forgot}>Forgot password?</Text>
+              </Pressable>
             }
-          </TouchableOpacity>
+            placeholder="Your password"
+            secureTextEntry={!showPassword}
+            autoComplete="password"
+            textContentType="password"
+            returnKeyType="go"
+            value={password}
+            onChangeText={setPassword}
+            onSubmitEditing={handleSignIn}
+            trailing={
+              <Pressable
+                onPress={() => setShowPassword(!showPassword)}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword
+                  ? <Eye size={17} color={colors.textMuted} strokeWidth={1.75} />
+                  : <EyeOff size={17} color={colors.textMuted} strokeWidth={1.75} />}
+              </Pressable>
+            }
+          />
 
-          {/* or continue with
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or continue with</Text>
-            <View style={styles.dividerLine} />
-          </View>
+          <Button title="Sign in" onPress={handleSignIn} loading={loading} style={styles.submit} />
+        </View>
 
-          <View style={styles.socialRow}>
-            <TouchableOpacity style={styles.socialBtn}>
-              <Globe size={16} color={colors.textPrimary} />
-              <Text style={styles.socialBtnText}>Google</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.socialBtn}>
-              <Sun size={16} color={colors.textPrimary} />
-              <Text style={styles.socialBtnText}>Apple</Text>
-            </TouchableOpacity>
-          </View>
-          */}
-
-          <View style={styles.switchRow}>
-            <Text style={styles.switchText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-              <Text style={styles.switchLink}>Sign Up</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.switchRow}>
+          <Text style={styles.switchText}>New to Lumyo?</Text>
+          <Pressable onPress={() => navigation.navigate('SignUp')} hitSlop={10} accessibilityRole="link">
+            <Text style={styles.switchLink}>Create an account</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bgPrimary },
-  container: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingBottom: 40 },
-  logoBlock: { alignItems: 'center', paddingTop: 32, paddingBottom: 40 },
-  logoIcon: {
-    width: 64, height: 64, borderRadius: 18,
-    backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
-    marginBottom: 16,
+  container: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40, gap: 32 },
+  intro: { gap: 8 },
+  logo: { marginBottom: 28, marginLeft: -4 },
+  title: {
+    fontFamily: fonts.spaceGrotesk.semiBold, fontSize: 32, lineHeight: 38,
+    letterSpacing: -0.64, color: colors.textPrimary,
   },
-  appName: { fontFamily: fonts.spaceGrotesk.semiBold, fontSize: 28, color: colors.textPrimary },
-  subtitle: { fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textSecondary, marginTop: 6 },
-  form: { gap: 16 },
-  fieldGroup: { gap: 6 },
-  label: { fontFamily: fonts.inter.medium, fontSize: 14, color: colors.textPrimary },
-  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  forgot: { fontFamily: fonts.inter.medium, fontSize: 14, color: colors.aiAccentText },
-  inputRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
-    paddingHorizontal: 14, paddingVertical: 13,
-  },
-  input: { flex: 1, fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textPrimary },
-  primaryBtn: {
-    backgroundColor: colors.accent, borderRadius: radius.md,
-    paddingVertical: 15, alignItems: 'center', marginTop: 4,
-  },
-  primaryBtnText: { fontFamily: fonts.inter.semiBold, fontSize: 15, color: '#FFFFFF' },
-  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 4 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
-  dividerText: { fontFamily: fonts.inter.regular, fontSize: 13, color: colors.textMuted },
-  socialRow: { flexDirection: 'row', gap: 12 },
-  socialBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingVertical: 13,
-  },
-  socialBtnText: { fontFamily: fonts.inter.medium, fontSize: 14, color: colors.textPrimary },
-  switchRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 8 },
-  switchText: { fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textSecondary },
+  subtitle: { fontFamily: fonts.inter.regular, fontSize: 15, lineHeight: 22, color: colors.textMuted },
+  form: { gap: 18 },
+  forgot: { fontFamily: fonts.inter.medium, fontSize: 13, color: colors.accentText },
+  submit: { marginTop: 6 },
+  switchRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
+  switchText: { fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textMuted },
   switchLink: { fontFamily: fonts.inter.semiBold, fontSize: 14, color: colors.textPrimary },
 });

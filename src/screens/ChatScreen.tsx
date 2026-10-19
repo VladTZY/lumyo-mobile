@@ -1,14 +1,17 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  View, Text, TextInput, Pressable, StyleSheet,
   ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FileText, Sparkles, ArrowUp, ChevronLeft } from 'lucide-react-native';
-import { colors, fonts, radius } from '../theme';
+import { FileText, ArrowUp, ListChecks } from 'lucide-react-native';
+import { fonts, radius, type Colors } from '../theme';
+import { useStyles, useTheme } from '../theme/ThemeContext';
+import { LogoMark } from '../components/Logo';
+import { BackButton, Button, CitationChip } from '../components/ui';
 import {
   createChat, getChat, sendMessageStream, updateChat,
-  type Chat, type Message,
+  type Chat, type Message, type Source,
 } from '../services/chat';
 import Markdown from 'react-native-markdown-display';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -16,8 +19,30 @@ import type { ChatStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<ChatStackParamList, 'ChatMain'>;
 
+// One chip per note, numbered in the order the answer cites them.
+function uniqueSources(sources: Source[]): Source[] {
+  const seen = new Set<number>();
+  return sources.filter((src) => {
+    if (seen.has(src.note_id)) return false;
+    seen.add(src.note_id);
+    return true;
+  });
+}
+
+function AssistantAvatar() {
+  const styles = useStyles(makeStyles);
+  return (
+    <View style={styles.aiAvatar} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <LogoMark size={16} />
+    </View>
+  );
+}
+
 export function ChatScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { colors, scheme } = useTheme();
+  const styles = useStyles(makeStyles);
+  const mdStyles = useStyles(makeMdStyles);
   const scrollRef = useRef<ScrollView>(null);
 
   const [chat, setChat] = useState<Chat | null>(null);
@@ -101,7 +126,7 @@ export function ChatScreen({ route, navigation }: Props) {
         id: Date.now() + 1,
         chat_id: currentChat.id,
         role: 'assistant',
-        content: `Sorry, something went wrong: ${e.message}`,
+        content: `Couldn't get an answer: ${e.message}. Check your connection and send the question again.`,
         sources: [],
         created_at: new Date().toISOString(),
       };
@@ -120,6 +145,14 @@ export function ChatScreen({ route, navigation }: Props) {
     });
   }, [chat, sourceNoteIds, navigation]);
 
+  const openSource = useCallback((noteId: number) => {
+    (navigation as any).navigate('Notes', {
+      screen: 'NoteEditor',
+      params: { id: String(noteId) },
+      initial: false,
+    });
+  }, [navigation]);
+
   const canSend = input.trim().length > 0 && !sending;
   const hasMessages = messages.length > 0 || sending;
 
@@ -133,19 +166,22 @@ export function ChatScreen({ route, navigation }: Props) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <ChevronLeft size={22} color={colors.textPrimary} />
-          </TouchableOpacity>
+          <BackButton onPress={() => navigation.goBack()} />
           <Text style={styles.headerTitle} numberOfLines={1}>
-            {chat?.title || 'New Chat'}
+            {chat?.title || 'New chat'}
           </Text>
         </View>
-        <TouchableOpacity style={styles.sourcesBtn} onPress={handleSourcesPress}>
-          <FileText size={14} color={colors.aiAccent} />
+        <Pressable
+          style={({ pressed }) => [styles.sourcesBtn, pressed && styles.sourcesBtnPressed]}
+          onPress={handleSourcesPress}
+          accessibilityRole="button"
+          accessibilityLabel={sourceCount > 0 ? `${sourceCount} notes selected. Change notes` : 'Choose notes'}
+        >
+          <FileText size={14} color={colors.citationText} strokeWidth={1.75} />
           <Text style={styles.sourcesBtnText}>
-            {sourceCount > 0 ? `${sourceCount} source${sourceCount !== 1 ? 's' : ''}` : 'Select sources'}
+            {sourceCount > 0 ? `${sourceCount} ${sourceCount === 1 ? 'note' : 'notes'}` : 'Choose notes'}
           </Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       {/* Messages area */}
@@ -161,15 +197,18 @@ export function ChatScreen({ route, navigation }: Props) {
       >
         {!hasMessages && (
           <View style={styles.emptyState}>
-            <View style={styles.emptyIconWrap}>
-              <Sparkles size={28} color={colors.aiAccent} />
+            <View style={styles.emptyMark}>
+              <LogoMark size={30} />
             </View>
-            <Text style={styles.emptyTitle}>Your second brain</Text>
+            <Text style={styles.emptyTitle}>Ask your notes.</Text>
             <Text style={styles.emptySubtitle}>
               {sourceCount > 0
-                ? 'Ask anything about your selected notes'
-                : 'Select sources to start chatting'}
+                ? `Lumyo will answer from the ${sourceCount} ${sourceCount === 1 ? 'note' : 'notes'} you picked, and cite each one it uses.`
+                : 'First choose which notes Lumyo can read. It answers only from those, and says so when they don\'t cover your question.'}
             </Text>
+            {sourceCount === 0 && (
+              <Button title="Choose notes" icon={ListChecks} size="small" onPress={handleSourcesPress} style={styles.emptyAction} />
+            )}
           </View>
         )}
 
@@ -181,21 +220,29 @@ export function ChatScreen({ route, navigation }: Props) {
               </View>
             ) : (
               <View style={styles.aiBubble}>
-                <View style={styles.aiAvatarWrap}>
-                  <Sparkles size={14} color={colors.aiAccent} />
-                </View>
+                <AssistantAvatar />
                 <View style={styles.aiContent}>
                   <Markdown style={mdStyles}>{msg.content}</Markdown>
-                  {msg.sources && msg.sources.length > 0 && (
-                    <View style={styles.sourcesRow}>
-                      {msg.sources.map((src, i) => (
-                        <View key={i} style={styles.sourceChip}>
-                          <FileText size={11} color={colors.aiAccent} />
-                          <Text style={styles.sourceText}>{src.title}</Text>
+                  {msg.sources && msg.sources.length > 0 && (() => {
+                    const cited = uniqueSources(msg.sources);
+                    return (
+                      <View style={styles.citations}>
+                        <View style={styles.sourcesRow}>
+                          {cited.map((src, i) => (
+                            <CitationChip
+                              key={src.note_id}
+                              index={i + 1}
+                              title={src.title}
+                              onPress={() => openSource(src.note_id)}
+                            />
+                          ))}
                         </View>
-                      ))}
-                    </View>
-                  )}
+                        <Text style={styles.basedOn}>
+                          Based on {cited.length} of your notes
+                        </Text>
+                      </View>
+                    );
+                  })()}
                 </View>
               </View>
             )}
@@ -204,17 +251,15 @@ export function ChatScreen({ route, navigation }: Props) {
 
         {sending && (
           <View style={styles.aiBubble}>
-            <View style={styles.aiAvatarWrap}>
-              <Sparkles size={14} color={colors.aiAccent} />
-            </View>
+            <AssistantAvatar />
             {streamingText ? (
               <View style={styles.aiContent}>
                 <Markdown style={mdStyles}>{streamingText}</Markdown>
               </View>
             ) : (
               <View style={styles.thinkingWrap}>
-                <ActivityIndicator size="small" color={colors.aiAccent} />
-                <Text style={styles.thinkingText}>Thinking...</Text>
+                <ActivityIndicator size="small" color={colors.accentText} />
+                <Text style={styles.thinkingText}>Reading your notes…</Text>
               </View>
             )}
           </View>
@@ -225,135 +270,155 @@ export function ChatScreen({ route, navigation }: Props) {
       <View style={styles.inputArea}>
         <TextInput
           style={styles.textInput}
-          placeholder="Ask about your notes..."
+          placeholder={sourceCount > 0 ? 'Ask your notes a question' : 'Choose notes first, then ask'}
           placeholderTextColor={colors.textMuted}
+          selectionColor={colors.accent}
+          keyboardAppearance={scheme}
+          accessibilityLabel="Question"
           value={input}
           onChangeText={setInput}
           multiline
           editable={!sending}
           onSubmitEditing={handleSend}
         />
-        <TouchableOpacity
-          style={[styles.sendBtn, canSend && styles.sendBtnActive]}
+        <Pressable
+          style={({ pressed }) => [styles.sendBtn, canSend && styles.sendBtnActive, pressed && canSend && styles.sendBtnPressed]}
           onPress={handleSend}
           disabled={!canSend}
+          accessibilityRole="button"
+          accessibilityLabel="Send question"
+          accessibilityState={{ disabled: !canSend, busy: sending }}
         >
           {sending
-            ? <ActivityIndicator size={14} color="#FFFFFF" />
-            : <ArrowUp size={18} color={canSend ? '#FFFFFF' : colors.textMuted} />
+            ? <ActivityIndicator size="small" color={colors.textMuted} />
+            : <ArrowUp size={18} color={canSend ? colors.onAccent : colors.textMuted} strokeWidth={2.25} />
           }
-        </TouchableOpacity>
+        </Pressable>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bgPrimary },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8, gap: 12,
+    paddingLeft: 20, paddingRight: 16, paddingVertical: 4, gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderStrong,
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 },
-  backBtn: { padding: 2 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   headerTitle: {
     fontFamily: fonts.spaceGrotesk.semiBold, fontSize: 18, color: colors.textPrimary,
     flex: 1,
   },
   sourcesBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: colors.aiAccentLight, borderRadius: radius.full,
-    paddingHorizontal: 12, paddingVertical: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36,
+    backgroundColor: colors.citationBg, borderRadius: radius.full,
+    paddingHorizontal: 12,
   },
-  sourcesBtnText: { fontFamily: fonts.inter.medium, fontSize: 13, color: colors.aiAccentText },
+  sourcesBtnPressed: { opacity: 0.75 },
+  sourcesBtnText: { fontFamily: fonts.inter.semiBold, fontSize: 13, color: colors.citationText },
 
   messages: { flex: 1 },
-  messagesContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8, gap: 20 },
+  messagesContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12, gap: 24 },
   messagesContentEmpty: { flexGrow: 1, justifyContent: 'center' },
 
-  emptyState: { alignItems: 'center', gap: 10, paddingBottom: 20 },
-  emptyIconWrap: {
-    width: 52, height: 52, borderRadius: 26,
-    backgroundColor: colors.aiAccentLight,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  emptyState: { alignItems: 'center', gap: 8, paddingBottom: 24, paddingHorizontal: 12 },
+  emptyMark: {
+    width: 64, height: 64, borderRadius: 20, marginBottom: 12,
+    backgroundColor: colors.citationBg, alignItems: 'center', justifyContent: 'center',
   },
-  emptyTitle: { fontFamily: fonts.spaceGrotesk.semiBold, fontSize: 20, color: colors.textPrimary },
+  emptyTitle: {
+    fontFamily: fonts.spaceGrotesk.semiBold, fontSize: 26, letterSpacing: -0.5, color: colors.textPrimary,
+  },
   emptySubtitle: {
-    fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textSecondary,
-    textAlign: 'center', lineHeight: 20, paddingHorizontal: 20,
+    fontFamily: fonts.inter.regular, fontSize: 15, color: colors.textMuted,
+    textAlign: 'center', lineHeight: 22, maxWidth: 320,
   },
+  emptyAction: { marginTop: 14 },
 
   messageWrapper: {},
   userBubble: {
-    alignSelf: 'flex-end', maxWidth: '80%',
-    backgroundColor: colors.accent, borderRadius: 18,
-    borderBottomRightRadius: 4,
-    paddingHorizontal: 16, paddingVertical: 12,
+    alignSelf: 'flex-end', maxWidth: '82%',
+    backgroundColor: colors.ink, borderRadius: 20,
+    borderBottomRightRadius: 6,
+    paddingHorizontal: 16, paddingVertical: 11,
   },
-  userText: { fontFamily: fonts.inter.regular, fontSize: 15, color: '#FFFFFF', lineHeight: 22 },
+  userText: { fontFamily: fonts.inter.regular, fontSize: 15, color: colors.onInk, lineHeight: 22 },
   aiBubble: {
-    flexDirection: 'row', gap: 10, alignItems: 'flex-start',
+    flexDirection: 'row', gap: 12, alignItems: 'flex-start',
   },
-  aiAvatarWrap: {
+  aiAvatar: {
     width: 30, height: 30, borderRadius: 15,
-    backgroundColor: colors.aiAccentLight,
-    alignItems: 'center', justifyContent: 'center', marginTop: 2,
+    backgroundColor: colors.citationBg,
+    alignItems: 'center', justifyContent: 'center', marginTop: 1,
   },
-  aiContent: { flex: 1, gap: 10 },
-  aiText: { fontFamily: fonts.inter.regular, fontSize: 15, color: colors.textPrimary, lineHeight: 24 },
+  aiContent: { flex: 1, gap: 12, paddingTop: 3 },
   thinkingWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 6 },
-  thinkingText: { fontFamily: fonts.inter.regular, fontSize: 13, color: colors.aiAccentText },
+  thinkingText: { fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textMuted },
 
-  sourcesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  sourceChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: colors.aiAccentLight, borderRadius: radius.full,
-    paddingHorizontal: 10, paddingVertical: 4,
+  citations: {
+    gap: 10, paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderStrong,
   },
-  sourceText: { fontFamily: fonts.inter.medium, fontSize: 12, color: colors.aiAccentText },
+  sourcesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  basedOn: { fontFamily: fonts.inter.regular, fontSize: 12, color: colors.textMuted },
 
   inputArea: {
     flexDirection: 'row', alignItems: 'flex-end', gap: 10,
-    paddingHorizontal: 20, paddingTop: 10, paddingBottom: 10,
-    borderTopWidth: 1, borderTopColor: colors.border,
+    paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderStrong,
+    backgroundColor: colors.bgPrimary,
   },
   textInput: {
-    flex: 1, fontFamily: fonts.inter.regular, fontSize: 14, color: colors.textPrimary,
+    flex: 1, fontFamily: fonts.inter.regular, fontSize: 15, color: colors.textPrimary,
+    backgroundColor: colors.bgSurface,
     borderWidth: 1, borderColor: colors.border, borderRadius: 22,
-    paddingHorizontal: 16, paddingVertical: 10, maxHeight: 100,
+    paddingHorizontal: 16, paddingTop: 11, paddingBottom: 11, minHeight: 44, maxHeight: 120,
   },
   sendBtn: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: colors.bgHover, alignItems: 'center', justifyContent: 'center',
   },
   sendBtnActive: { backgroundColor: colors.accent },
+  sendBtnPressed: { backgroundColor: colors.accentPressed },
 });
 
-const mdStyles = StyleSheet.create({
+const makeMdStyles = (colors: Colors) => StyleSheet.create({
   body: { fontFamily: fonts.inter.regular, fontSize: 15, color: colors.textPrimary, lineHeight: 24 },
   heading1: { fontFamily: fonts.spaceGrotesk.semiBold, fontSize: 20, color: colors.textPrimary, marginTop: 12, marginBottom: 4 },
   heading2: { fontFamily: fonts.spaceGrotesk.semiBold, fontSize: 18, color: colors.textPrimary, marginTop: 10, marginBottom: 4 },
   heading3: { fontFamily: fonts.spaceGrotesk.semiBold, fontSize: 16, color: colors.textPrimary, marginTop: 8, marginBottom: 4 },
   strong: { fontFamily: fonts.inter.semiBold },
-  em: { fontStyle: 'italic' },
+  em: { fontFamily: fonts.inter.italic },
   bullet_list: { marginVertical: 4 },
   ordered_list: { marginVertical: 4 },
   list_item: { marginVertical: 2 },
+  bullet_list_icon: { color: colors.textMuted },
+  ordered_list_icon: { color: colors.textMuted },
   code_inline: {
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    fontSize: 13, backgroundColor: colors.bgSurface, color: colors.aiAccentText,
+    fontSize: 13, backgroundColor: colors.bgHover, color: colors.textPrimary,
     paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4,
   },
   fence: {
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     fontSize: 13, backgroundColor: colors.bgSurface, color: colors.textPrimary,
+    borderWidth: 1, borderColor: colors.border,
     padding: 12, borderRadius: 8, marginVertical: 8, overflow: 'hidden',
   },
+  code_block: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 13, backgroundColor: colors.bgSurface, color: colors.textPrimary,
+    padding: 12, borderRadius: 8,
+  },
   blockquote: {
-    backgroundColor: colors.bgSurface, borderLeftWidth: 3, borderLeftColor: colors.aiAccent,
+    backgroundColor: colors.bgSurface, borderLeftWidth: 3, borderLeftColor: colors.spark,
     paddingHorizontal: 12, paddingVertical: 8, marginVertical: 6, borderRadius: 4,
   },
   hr: { backgroundColor: colors.border, height: 1, marginVertical: 12 },
   paragraph: { marginTop: 0, marginBottom: 8 },
-  link: { color: colors.aiAccentText, textDecorationLine: 'underline' },
+  link: { color: colors.accentText, textDecorationLine: 'underline' },
+  table: { borderColor: colors.border },
+  tr: { borderColor: colors.border },
 });
