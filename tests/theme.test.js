@@ -38,3 +38,12 @@ test('AC22: theme module stays pure constants (no imports)', () => {
   assert.doesNotMatch(themeSrc, /^\s*import\s/m);
   assert.doesNotMatch(themeSrc, /\brequire\(/);
 });
+
+// The live-recording dot is a non-text indicator: WCAG 1.4.11 needs 3:1
+// against the bar it sits on.
+for (const [name, palette] of [['light', lightColors], ['dark', darkColors]]) {
+  test(`${name} recording token is visible against the footer surface`, () => {
+    assert.match(palette.recording, /^#[0-9A-Fa-f]{6}$/);
+    assert.ok(contrast(palette.recording, palette.bgSurface) >= 3);
+  });
+}

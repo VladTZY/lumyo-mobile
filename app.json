@@ -47,6 +47,14 @@
       "favicon": "./assets/favicon.png",
       "name": "Lumyo",
       "themeColor": "#7C3AED"
-    }
+    },
+    "plugins": [
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Lumyo uses the microphone when you dictate a note, to turn what you say into text."
+        }
+      ]
+    ]
   }
 }

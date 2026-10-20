@@ -91,6 +91,12 @@ const makeStyles = (colors: Colors) => StyleSheet.create({ ... });
 
 Shared pieces (headers, buttons, fields, empty states, citation chips) are in `src/components/ui.tsx`. The logo is in `src/components/Logo.tsx`, drawn from the vector files in `logos/final/svg`.
 
+## Dictation
+
+The note editor has a microphone button in the footer and in the bar above the keyboard. It records with `expo-audio` (mono m4a on iOS and Android, the browser's own format on web), uploads to `POST /transcriptions` and adds the text where the cursor was, or at the end of the note if no cursor was placed. Recordings stop on their own after 10 minutes.
+
+The server picks the transcription model, so changing it needs no app release (see `TRANSCRIPTION_MODELS` in the server README). The microphone permission text is set in `app.json` under the `expo-audio` plugin.
+
 ## Authentication
 
 The API client (`src/services/api.ts`) attaches a `Bearer` token to authenticated requests and reads new tokens from the `Authorization` response header on sign in/up. Tokens are persisted with `expo-secure-store` — never in plain storage.

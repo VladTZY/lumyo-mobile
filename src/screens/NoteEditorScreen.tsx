@@ -1,19 +1,28 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useId, useRef, useState, useCallback } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  View, Text, TextInput, TouchableOpacity, Pressable, StyleSheet, InputAccessoryView,
   ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Keyboard, AccessibilityInfo,
   type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Bold, Italic, Underline, Folder, RefreshCw, X, ScrollText } from 'lucide-react-native';
+import { Check, Folder, Mic, RefreshCw, X, ScrollText } from 'lucide-react-native';
 import { fonts, radius, type Colors } from '../theme';
 import { useStyles, useTheme } from '../theme/ThemeContext';
 import { LogoMark } from '../components/Logo';
-import { BackButton, CenteredSpinner } from '../components/ui';
+import { BackButton, CenteredSpinner, Tag } from '../components/ui';
 import { MarkdownText } from '../components/MarkdownText';
+import { FormatControls } from '../components/FormatControls';
+import { useKeyboardShown } from '../components/useKeyboardShown';
+import { useDictation } from '../components/useDictation';
+import { DictationBar } from '../components/DictationBar';
+import { dictationTarget, insertTranscript } from '../lib/dictation';
 import { FadeSlideIn } from '../components/FadeSlideIn';
 import { locateChunk } from '../lib/locateChunk';
 import { passageScroll } from '../lib/passageScroll';
+import {
+  toggleFormat, activeFormats, processNewline, wordCount,
+  type Sel, type FormatResult, type Format,
+} from '../lib/noteFormatting';
 import { getNote, createNote, updateNote, autocategorizeNote, type Note } from '../services/notes';
 import { getSummary, generateSummary, type NoteSummary } from '../services/summaries';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -23,8 +32,18 @@ type Props = NativeStackScreenProps<NotesStackParamList, 'NoteEditor'>;
 
 const SUMMARY_POLL_INTERVAL = 2000;
 
-// Brings the 36px toolbar buttons up to the 44px minimum touch target.
-const TOOLBTN_HITSLOP = { top: 4, bottom: 4, left: 4, right: 4 };
+// The format bar above the keyboard is an InputAccessoryView on iOS so it
+// moves with the keyboard natively. On Fabric, any native prop update on a
+// focused input with an accessory (a format tap sets `selection`) makes UIKit
+// reload its input views. Typing only changes children, so it should be safe,
+// but this can't be confirmed without a device: set to false to fall back to
+// the in-layout bar Android uses.
+const USE_IOS_ACCESSORY = true;
+
+const SAVED_FLASH_MS = 1500;
+// Brings the 36px AI pills and Save button up to the 44px minimum touch target.
+const PILL_HITSLOP = { top: 4, bottom: 4, left: 2, right: 2 };
+const SAVE_HITSLOP = { top: 4, bottom: 4, left: 4, right: 4 };
 
 // Matches bodyInput.lineHeight; used to place the cited passage on screen.
 const BODY_LINE_HEIGHT = 26;
@@ -46,153 +65,6 @@ const SOURCE_NOTICE_TEXT: Record<SourceNotice, string> = Platform.OS === 'web'
     approx: 'This note changed since Lumyo read it. Highlighted the closest passage.',
     missing: "This note changed since Lumyo read it, so the passage can't be highlighted.",
   };
-
-function wordCount(text: string) {
-  return text.trim() ? text.trim().split(/\s+/).length : 0;
-}
-
-type Sel = { start: number; end: number };
-type FormatResult = { text: string; sel: Sel };
-
-function escapeForRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function isWrappedWith(text: string, sel: Sel, open: string, close = open): boolean {
-  const selected = text.slice(sel.start, sel.end);
-  if (selected.length >= open.length + close.length && selected.startsWith(open) && selected.endsWith(close)) {
-    return true;
-  }
-  if (text.slice(0, sel.start).endsWith(open) && text.slice(sel.end).startsWith(close)) {
-    return true;
-  }
-  // Caret (or selection) resting strictly inside an already-formatted span,
-  // not touching the markers themselves — e.g. the caret placed mid-word
-  // after tapping into "**bold**". Walk every non-overlapping open...close
-  // pair left-to-right and check whether the caret/selection falls inside
-  // one of them, so the toolbar highlight reflects "inside a formatted
-  // span" the same way it does for an exact marker-touching selection.
-  const pairPattern = new RegExp(`${escapeForRegExp(open)}([\\s\\S]*?)${escapeForRegExp(close)}`, 'g');
-  let pair: RegExpExecArray | null;
-  while ((pair = pairPattern.exec(text))) {
-    const innerStart = pair.index + open.length;
-    const innerEnd = pair.index + pair[0].length - close.length;
-    if (innerStart < innerEnd && sel.start >= innerStart && sel.end <= innerEnd) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function toggleInline(text: string, sel: Sel, open: string, close = open): FormatResult {
-  const { start, end } = sel;
-  const before = text.slice(0, start);
-  const selected = text.slice(start, end);
-  const after = text.slice(end);
-
-  if (selected.length >= open.length + close.length && selected.startsWith(open) && selected.endsWith(close)) {
-    const inner = selected.slice(open.length, selected.length - close.length);
-    return { text: before + inner + after, sel: { start, end: start + inner.length } };
-  }
-
-  // A doubled marker around the selection belongs to a different format
-  // (e.g. ** around an italic candidate is bold) — unless tripled, in which
-  // case the single marker is genuinely present too.
-  const partOfLongerMarker =
-    before.endsWith(open + open) && after.startsWith(close + close) &&
-    !(before.endsWith(open + open + open) && after.startsWith(close + close + close));
-  if (before.endsWith(open) && after.startsWith(close) && !partOfLongerMarker) {
-    return {
-      text: before.slice(0, before.length - open.length) + selected + after.slice(close.length),
-      sel: { start: start - open.length, end: end - open.length },
-    };
-  }
-
-  if (start === end) {
-    // Cursor right before a closing marker: step over it instead of inserting
-    // a new pair — toggling the format off resumes unstyled typing after it.
-    const closeIsOtherFormat =
-      after.startsWith(close + close) && !after.startsWith(close + close + close);
-    if (after.startsWith(close) && !closeIsOtherFormat) {
-      const cursor = start + close.length;
-      return { text, sel: { start: cursor, end: cursor } };
-    }
-    const cursor = start + open.length;
-    return { text: before + open + close + after, sel: { start: cursor, end: cursor } };
-  }
-  return {
-    text: before + open + selected + close + after,
-    sel: { start: start + open.length, end: end + open.length },
-  };
-}
-
-// Bullet-list lines (in existing notes) start with this glyph; Enter on one
-// continues the list, Enter on an empty item ends it.
-const BULLET = '• ';
-
-// Spans MarkdownText styles within a single line. A newline typed inside one
-// would strand the closing marker on the next line and break the styling.
-const INLINE_SPAN = /(\*{1,3})([^*\n]+?)\1|<u>([^\n]*?)<\/u>/g;
-
-// Adjusts a just-typed newline the way Apple Notes behaves: a span the caret
-// was inside is closed before the break (and reopened after it when span text
-// continues), bullet lines continue the list, and an empty bullet item ends
-// it. Returns null when the change is not a single typed newline or needs no
-// adjustment.
-function processNewline(oldText: string, newText: string): FormatResult | null {
-  if (newText.length !== oldText.length + 1) return null;
-  let p = 0;
-  while (p < oldText.length && oldText[p] === newText[p]) p++;
-  if (newText[p] !== '\n' || oldText.slice(p) !== newText.slice(p + 1)) return null;
-
-  const lineStart = oldText.lastIndexOf('\n', p - 1) + 1;
-  let lineEnd = oldText.indexOf('\n', p);
-  if (lineEnd === -1) lineEnd = oldText.length;
-  const line = oldText.slice(lineStart, lineEnd);
-
-  // Enter on an empty bullet item removes the bullet and ends the list.
-  if (oldText.slice(lineStart, p) === BULLET && p === lineEnd) {
-    return { text: oldText.slice(0, lineStart) + oldText.slice(p), sel: { start: lineStart, end: lineStart } };
-  }
-
-  // Newline inside a styled span: close the span before the break, reopen it
-  // after when its text continues on the next line.
-  const re = new RegExp(INLINE_SPAN.source, 'g');
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(line))) {
-    const open = m[1] !== undefined ? m[1] : '<u>';
-    const close = m[1] !== undefined ? m[1] : '</u>';
-    const matchStart = lineStart + m.index;
-    const matchEnd = matchStart + m[0].length;
-    const innerStart = matchStart + open.length;
-    const innerEnd = matchEnd - close.length;
-    if (p < innerStart || p > innerEnd) continue;
-
-    const left = oldText.slice(innerStart, p);
-    const right = oldText.slice(p, innerEnd);
-    const before = oldText.slice(0, matchStart);
-    const text =
-      before +
-      (left ? open + left + close : '') +
-      '\n' +
-      (right ? open + right + close : '') +
-      oldText.slice(matchEnd);
-    const cursor =
-      before.length + (left ? open.length + left.length + close.length : 0) + 1 + (right ? open.length : 0);
-    return { text, sel: { start: cursor, end: cursor } };
-  }
-
-  // Enter on a bullet line continues the list on the next line.
-  if (line.startsWith(BULLET) && p >= lineStart + BULLET.length) {
-    const cursor = p + 1 + BULLET.length;
-    return {
-      text: newText.slice(0, p + 1) + BULLET + newText.slice(p + 1),
-      sel: { start: cursor, end: cursor },
-    };
-  }
-
-  return null;
-}
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -219,6 +91,14 @@ export function NoteEditorScreen({ route, navigation }: Props) {
   const noteIdRef = useRef(noteId);
   const isNewRef = useRef(isNew);
   const savingRef = useRef(false);
+
+  const keyboardShown = useKeyboardShown();
+  const accessoryId = `note-format-${useId()}`;
+  const useAccessory = Platform.OS === 'ios' && USE_IOS_ACCESSORY;
+  const [formatOpen, setFormatOpen] = useState(false);
+  const [bodyFocused, setBodyFocused] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const bodyRef = useRef<TextInput>(null);
   const [sel, setSel] = useState<Sel>({ start: 0, end: 0 });
@@ -358,6 +238,17 @@ export function NoteEditorScreen({ route, navigation }: Props) {
   }, [sourceNotice]);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
+  useEffect(() => () => {
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+  }, []);
+
+  // The format panel closes whenever the keyboard goes away, however that
+  // happens (Done, Android back, interactive dismissal, navigating off).
+  const wasKeyboardShown = useRef(false);
+  useEffect(() => {
+    if (wasKeyboardShown.current && !keyboardShown) setFormatOpen(false);
+    wasKeyboardShown.current = keyboardShown;
+  }, [keyboardShown]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', () => {
@@ -397,6 +288,10 @@ export function NoteEditorScreen({ route, navigation }: Props) {
         await updateNote(Number(noteId), title.trim(), content.trim());
       }
       isDirty.current = false;
+      setJustSaved(true);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setJustSaved(false), SAVED_FLASH_MS);
+      if (Platform.OS !== 'web') AccessibilityInfo.announceForAccessibility('Note saved');
     } catch (e: any) {
       Alert.alert('Save failed', e.message);
     } finally {
@@ -444,15 +339,59 @@ export function NoteEditorScreen({ route, navigation }: Props) {
     stopPolling();
   }, [stopPolling]);
 
+  // Editing makes a just-saved note dirty again, so the "Saved" flash ends.
+  const clearSaved = useCallback(() => {
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = null;
+    setJustSaved(false);
+  }, []);
+
   const applyFormat = useCallback((transform: (text: string, sel: Sel) => FormatResult) => {
     clearHighlight();
+    clearSaved();
     const result = transform(contentRef.current, sel);
     setContent(result.text);
     isDirty.current = true;
     setSel(result.sel);
     setForcedSel(result.sel);
     bodyRef.current?.focus();
-  }, [sel, clearHighlight]);
+  }, [sel, clearHighlight, clearSaved]);
+
+  const onFormat = useCallback(
+    (f: Format) => applyFormat((t, s) => toggleFormat(t, s, f)),
+    [applyFormat],
+  );
+
+  // Dictation inserts where the caret was when recording started, even if
+  // the keyboard (and so the live selection) went away in between.
+  const dictationSelRef = useRef<Sel>({ start: 0, end: 0 });
+  // False until the body reports a selection, i.e. the user placed a caret.
+  const selKnownRef = useRef(false);
+  const dictation = useDictation(useCallback((text: string) => {
+    clearHighlight();
+    clearSaved();
+    const result = insertTranscript(contentRef.current, dictationSelRef.current, text);
+    setContent(result.text);
+    isDirty.current = true;
+    setSel(result.sel);
+    setForcedSel(result.sel);
+  }, [clearHighlight, clearSaved]));
+  const dictating = dictation.phase !== 'idle';
+
+  const startDictation = useCallback(() => {
+    dictationSelRef.current = dictationTarget(sel, selKnownRef.current, contentRef.current.length);
+    // The recorder lives in the footer, which only shows without the keyboard.
+    Keyboard.dismiss();
+    setFormatOpen(false);
+    dictation.start();
+  }, [sel, dictation]);
+
+  // Done only hides the keyboard: saving can raise validation alerts, which
+  // shouldn't fire mid-writing. Back-navigation already autosaves.
+  const handleDone = useCallback(() => {
+    Keyboard.dismiss();
+    setFormatOpen(false);
+  }, []);
 
   const [categorizing, setCategorizing] = useState(false);
 
@@ -479,9 +418,41 @@ export function NoteEditorScreen({ route, navigation }: Props) {
   const words = wordCount(content);
   const showSummaryCard = summary && !summaryDismissed;
 
-  const boldActive = isWrappedWith(content, sel, '**');
-  const italicActive = isWrappedWith(content, sel, '***') || (isWrappedWith(content, sel, '*') && !boldActive);
-  const underlineActive = isWrappedWith(content, sel, '<u>', '</u>');
+  const active = activeFormats(content, sel);
+  const web = Platform.OS === 'web';
+
+  const controls = (
+    <FormatControls active={active} open={formatOpen} onOpenChange={setFormatOpen} onFormat={onFormat} />
+  );
+  const doneButton = (
+    <Pressable
+      style={({ pressed }) => [styles.doneBtn, pressed && styles.pressed]}
+      onPress={handleDone}
+      accessibilityRole="button"
+      accessibilityLabel="Done"
+      accessibilityHint="Hides the keyboard"
+    >
+      <Text style={styles.doneText}>Done</Text>
+    </Pressable>
+  );
+  const micButton = (
+    <Pressable
+      style={({ pressed }) => [styles.micBtn, pressed && styles.micBtnPressed]}
+      onPress={startDictation}
+      accessibilityRole="button"
+      accessibilityLabel="Dictate"
+      accessibilityHint="Records your voice and adds the text to the note"
+    >
+      <Mic size={20} color={colors.textPrimary} strokeWidth={1.75} />
+    </Pressable>
+  );
+  const keyboardBar = (
+    <View style={styles.keyboardBar}>
+      {controls}
+      <View style={styles.barEnd}>{micButton}{doneButton}</View>
+    </View>
+  );
+  const wordCountText = <Text style={styles.wordCount}>{words} {words === 1 ? 'word' : 'words'}</Text>;
 
   return (
     <KeyboardAvoidingView
@@ -494,10 +465,15 @@ export function NoteEditorScreen({ route, navigation }: Props) {
       <View style={styles.topBar}>
         <BackButton label="Notes" onPress={handleBack} />
         <View style={styles.topActions}>
-          <TouchableOpacity
-            style={[styles.aiBtn, categorizing && styles.aiBtnDisabled]}
+          <Pressable
+            style={({ pressed }) => [styles.aiBtn, categorizing && styles.aiBtnDisabled, pressed && styles.pressed]}
             onPress={handleAutocategorize}
             disabled={categorizing}
+            hitSlop={PILL_HITSLOP}
+            accessibilityRole="button"
+            accessibilityLabel="File it"
+            accessibilityHint="Lumyo picks a category for this note"
+            accessibilityState={{ disabled: categorizing, busy: categorizing }}
           >
             {categorizing ? (
               <ActivityIndicator size="small" color={colors.citationText} />
@@ -507,11 +483,16 @@ export function NoteEditorScreen({ route, navigation }: Props) {
             <Text style={styles.aiBtnText}>
               {categorizing ? 'Filing…' : 'File it'}
             </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.aiBtn, summarizing && styles.aiBtnDisabled]}
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.aiBtn, summarizing && styles.aiBtnDisabled, pressed && styles.pressed]}
             onPress={handleSummarize}
             disabled={summarizing}
+            hitSlop={PILL_HITSLOP}
+            accessibilityRole="button"
+            accessibilityLabel="Summarize"
+            accessibilityHint="Lumyo writes a short summary of this note"
+            accessibilityState={{ disabled: summarizing, busy: summarizing }}
           >
             {summarizing ? (
               <ActivityIndicator size="small" color={colors.citationText} />
@@ -521,7 +502,7 @@ export function NoteEditorScreen({ route, navigation }: Props) {
             <Text style={styles.aiBtnText}>
               {summarizing ? 'Summarizing…' : 'Summarize'}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
 
@@ -532,13 +513,14 @@ export function NoteEditorScreen({ route, navigation }: Props) {
         style={styles.scroll}
         contentContainerStyle={styles.editorContent}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         showsVerticalScrollIndicator={false}
       >
         {/* Title */}
         <TextInput
           style={styles.titleInput}
           value={title}
-          onChangeText={(t) => { setTitle(t); isDirty.current = true; }}
+          onChangeText={(t) => { setTitle(t); clearSaved(); isDirty.current = true; }}
           placeholder="Title"
           placeholderTextColor={colors.textMuted}
           multiline
@@ -546,16 +528,16 @@ export function NoteEditorScreen({ route, navigation }: Props) {
           selectionColor={colors.accent}
           keyboardAppearance={scheme}
           accessibilityLabel="Note title"
+          autoFocus={routeIsNew}
+          returnKeyType="next"
+          submitBehavior="submit"
+          blurOnSubmit
+          onSubmitEditing={() => bodyRef.current?.focus()}
         />
 
         {/* Meta row */}
         <View style={styles.metaRow}>
-          {category && (
-            <View style={styles.catTag}>
-              <Folder size={12} color={colors.textSecondary} strokeWidth={1.75} />
-              <Text style={styles.catTagText}>{category.title}</Text>
-            </View>
-          )}
+          {category && <Tag label={category.title} />}
           <Text style={styles.dateText}>{dateStr}</Text>
         </View>
 
@@ -585,11 +567,23 @@ export function NoteEditorScreen({ route, navigation }: Props) {
 
             {(summary.status === 'completed' || summary.status === 'failed') && (
               <View style={styles.summaryActions}>
-                <TouchableOpacity style={styles.summaryActionBtn} onPress={handleResummarize} accessibilityRole="button">
+                <TouchableOpacity
+                  style={styles.summaryActionBtn}
+                  onPress={handleResummarize}
+                  hitSlop={BANNER_HITSLOP}
+                  accessibilityRole="button"
+                  accessibilityLabel="Summarize again"
+                >
                   <RefreshCw size={13} color={colors.citationText} strokeWidth={1.75} />
                   <Text style={styles.summaryActionText}>Summarize again</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.summaryActionBtn} onPress={handleDismiss} accessibilityRole="button">
+                <TouchableOpacity
+                  style={styles.summaryActionBtn}
+                  onPress={handleDismiss}
+                  hitSlop={BANNER_HITSLOP}
+                  accessibilityRole="button"
+                  accessibilityLabel="Hide summary"
+                >
                   <X size={13} color={colors.citationText} strokeWidth={1.75} />
                   <Text style={styles.summaryActionText}>Hide</Text>
                 </TouchableOpacity>
@@ -629,11 +623,12 @@ export function NoteEditorScreen({ route, navigation }: Props) {
           <TextInput
             ref={bodyRef}
             style={styles.bodyInput}
-            value={Platform.OS === 'web' ? content : undefined}
+            value={web ? content : undefined}
             onChangeText={(t) => {
               clearHighlight();
+              clearSaved();
               isDirty.current = true;
-              const adjusted = processNewline(contentRef.current, t);
+              const adjusted = processNewline(contentRef.current, t, sel.start);
               if (adjusted) {
                 setContent(adjusted.text);
                 setSel(adjusted.sel);
@@ -643,7 +638,11 @@ export function NoteEditorScreen({ route, navigation }: Props) {
               }
             }}
             selection={forcedSel}
+            inputAccessoryViewID={useAccessory ? accessoryId : undefined}
+            onFocus={() => setBodyFocused(true)}
+            onBlur={() => setBodyFocused(false)}
             onSelectionChange={(e) => {
+              selKnownRef.current = true;
               setSel(e.nativeEvent.selection);
               if (forcedSel) setForcedSel(undefined);
             }}
@@ -664,7 +663,7 @@ export function NoteEditorScreen({ route, navigation }: Props) {
             textAlignVertical="top"
             selectionColor={colors.accent}
           >
-            {Platform.OS !== 'web' && content.length > 0
+            {!web && content.length > 0
               ? <MarkdownText text={content} highlight={highlight} highlightColor={colors.highlightBg} />
               : undefined}
           </TextInput>
@@ -679,7 +678,7 @@ export function NoteEditorScreen({ route, navigation }: Props) {
               importantForAccessibility="no-hide-descendants"
               pointerEvents="none"
             >
-              {Platform.OS === 'web'
+              {web
                 // Web shows raw markers, so measure the plain prefix. The
                 // zero-width space keeps a trailing newline from collapsing.
                 ? `${content.slice(0, highlight.start)}\u200b`
@@ -689,52 +688,50 @@ export function NoteEditorScreen({ route, navigation }: Props) {
         </View>
       </ScrollView>
 
-      {/* Footer */}
-      <View style={styles.footer}>
-        <View style={styles.toolbarLeft}>
-          <TouchableOpacity
-            style={[styles.toolBtn, boldActive && styles.toolBtnActive]}
-            onPress={() => applyFormat((t, s) => toggleInline(t, s, '**'))}
-            hitSlop={TOOLBTN_HITSLOP}
+      {/* In-layout format bar (Android, or iOS with the accessory flag off):
+          shown only while the keyboard is up and the body is being edited. */}
+      {!useAccessory && keyboardShown && bodyFocused && keyboardBar}
+
+      {/* Resting footer; hidden while typing so the keyboard bar is alone.
+          Web has no keyboard events, so its footer carries the controls. */}
+      {dictating && <DictationBar dictation={dictation} />}
+      {!keyboardShown && !dictating && (
+        <View style={styles.footer}>
+          <View style={styles.footerStart}>
+            {web && controls}
+            {!(web && formatOpen) && micButton}
+            {!(web && formatOpen) && wordCountText}
+          </View>
+          <Pressable
+            style={({ pressed }) => [styles.saveBtn, saving && styles.saveBtnDisabled, pressed && styles.pressed]}
+            onPress={save}
+            disabled={saving}
+            hitSlop={SAVE_HITSLOP}
             accessibilityRole="button"
-            accessibilityLabel="Bold"
-            accessibilityState={{ selected: boldActive }}
+            accessibilityLabel="Save note"
+            accessibilityState={{ disabled: saving, busy: saving }}
           >
-            <Bold size={18} color={boldActive ? colors.textPrimary : colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toolBtn, italicActive && styles.toolBtnActive]}
-            onPress={() => applyFormat((t, s) => toggleInline(t, s, '*'))}
-            hitSlop={TOOLBTN_HITSLOP}
-            accessibilityRole="button"
-            accessibilityLabel="Italic"
-            accessibilityState={{ selected: italicActive }}
-          >
-            <Italic size={18} color={italicActive ? colors.textPrimary : colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toolBtn, underlineActive && styles.toolBtnActive]}
-            onPress={() => applyFormat((t, s) => toggleInline(t, s, '<u>', '</u>'))}
-            hitSlop={TOOLBTN_HITSLOP}
-            accessibilityRole="button"
-            accessibilityLabel="Underline"
-            accessibilityState={{ selected: underlineActive }}
-          >
-            <Underline size={18} color={underlineActive ? colors.textPrimary : colors.textSecondary} />
-          </TouchableOpacity>
+            {saving ? (
+              <ActivityIndicator size="small" color={colors.onAccent} />
+            ) : justSaved ? (
+              <>
+                <Check size={16} color={colors.onAccent} strokeWidth={1.75} />
+                <Text style={styles.saveBtnText}>Saved</Text>
+              </>
+            ) : (
+              <Text style={styles.saveBtnText}>Save</Text>
+            )}
+          </Pressable>
         </View>
-        <Text style={styles.wordCount}>{words} {words === 1 ? 'word' : 'words'}</Text>
-        <TouchableOpacity
-          style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
-          onPress={save}
-          disabled={saving}
-        >
-          {saving
-            ? <ActivityIndicator size="small" color={colors.onAccent} />
-            : <Text style={styles.saveBtnText}>Save</Text>
-          }
-        </TouchableOpacity>
-      </View>
+      )}
+
+      {/* iOS: positioned natively above the keyboard, so its place in the
+          tree doesn't affect layout. Attached to the body input only. */}
+      {useAccessory && (
+        <InputAccessoryView nativeID={accessoryId} backgroundColor={colors.bgSurface}>
+          {keyboardBar}
+        </InputAccessoryView>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -762,12 +759,6 @@ const makeStyles = (colors: Colors) => StyleSheet.create({
     lineHeight: 34, letterSpacing: -0.56, padding: 0,
   },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  catTag: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: colors.bgHover, borderRadius: radius.full,
-    paddingHorizontal: 10, paddingVertical: 4,
-  },
-  catTagText: { fontFamily: fonts.inter.medium, fontSize: 12, color: colors.textSecondary },
   dateText: { fontFamily: fonts.inter.regular, fontSize: 12, color: colors.textMuted },
   divider: { height: 1, backgroundColor: colors.border },
   // Summary card
@@ -816,6 +807,9 @@ const makeStyles = (colors: Colors) => StyleSheet.create({
   bodyInput: {
     fontFamily: fonts.inter.regular, fontSize: 16,
     color: colors.textPrimary, lineHeight: 26, minHeight: 400, padding: 0,
+    // The body is the page itself, so the browser's focus box around the
+    // whole textarea reads as a bug; the caret shows where focus is.
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null),
   },
   footer: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -826,17 +820,23 @@ const makeStyles = (colors: Colors) => StyleSheet.create({
     // ChatScreen's input row.
     paddingHorizontal: 20, paddingTop: 10, paddingBottom: 10,
   },
-  toolbarLeft: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  toolBtn: {
-    width: 36, height: 36, borderRadius: radius.sm,
-    alignItems: 'center', justifyContent: 'center',
+  keyboardBar: {
+    height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 12, backgroundColor: colors.bgSurface,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderStrong,
   },
-  toolBtnActive: { backgroundColor: colors.bgHover },
+  barEnd: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  footerStart: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  micBtn: { width: 44, height: 44, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
+  micBtnPressed: { backgroundColor: colors.bgHover },
+  doneBtn: { minHeight: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  doneText: { fontFamily: fonts.inter.semiBold, fontSize: 15, color: colors.accentText },
+  pressed: { opacity: 0.75 },
   wordCount: { fontFamily: fonts.inter.regular, fontSize: 12, color: colors.textMuted, fontVariant: ['tabular-nums'] },
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     backgroundColor: colors.accent, borderRadius: radius.md,
-    paddingHorizontal: 18, minHeight: 36, minWidth: 72,
+    paddingHorizontal: 18, minHeight: 36, minWidth: 104, // wide enough for check + "Saved"
   },
   saveBtnDisabled: { opacity: 0.6 },
   saveBtnText: { fontFamily: fonts.inter.semiBold, fontSize: 14, color: colors.onAccent },

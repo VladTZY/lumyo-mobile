@@ -37,6 +37,8 @@ export interface Colors {
   ink: string;
   onInk: string;
   danger: string;
+  /** Live-recording indicator (the red dot while dictating). */
+  recording: string;
   dangerBg: string;
   backdrop: string;
 }
@@ -64,6 +66,7 @@ export const lightColors: Colors = {
   ink: '#0D0D0D',
   onInk: '#FFFFFF',
   danger: '#C2410C',
+  recording: '#DC2626',
   dangerBg: '#FFF4ED',
   backdrop: 'rgba(13, 13, 13, 0.32)',
 };
@@ -92,6 +95,7 @@ export const darkColors: Colors = {
   ink: '#F2F2F2',
   onInk: '#0A0A0A',
   danger: '#FB923C',
+  recording: '#F87171',
   dangerBg: '#2A1608',
   backdrop: 'rgba(0, 0, 0, 0.6)',
 };
