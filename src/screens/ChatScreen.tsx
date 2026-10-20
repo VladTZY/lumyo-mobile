@@ -19,7 +19,7 @@ import type { ChatStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<ChatStackParamList, 'ChatMain'>;
 
-// One chip per note, numbered in the order the answer cites them.
+// One pill per note (first occurrence wins), in the order the answer cites them.
 function uniqueSources(sources: Source[]): Source[] {
   const seen = new Set<number>();
   return sources.filter((src) => {
@@ -145,10 +145,11 @@ export function ChatScreen({ route, navigation }: Props) {
     });
   }, [chat, sourceNoteIds, navigation]);
 
-  const openSource = useCallback((noteId: number) => {
+  const openSource = useCallback((src: Source) => {
     (navigation as any).navigate('Notes', {
       screen: 'NoteEditor',
-      params: { id: String(noteId) },
+      // The nonce makes re-tapping the same pill re-run the highlight.
+      params: { id: String(src.note_id), sourceChunk: src.chunk_text, sourceNonce: Date.now() },
       initial: false,
     });
   }, [navigation]);
@@ -228,12 +229,12 @@ export function ChatScreen({ route, navigation }: Props) {
                     return (
                       <View style={styles.citations}>
                         <View style={styles.sourcesRow}>
-                          {cited.map((src, i) => (
+                          {cited.map((src) => (
                             <CitationChip
                               key={src.note_id}
-                              index={i + 1}
                               title={src.title}
-                              onPress={() => openSource(src.note_id)}
+                              accessibilityHint="Opens the note and highlights the passage this answer used"
+                              onPress={() => openSource(src)}
                             />
                           ))}
                         </View>

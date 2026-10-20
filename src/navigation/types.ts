@@ -15,7 +15,7 @@ export type CategoriesStackParamList = {
 
 export type NotesStackParamList = {
   NotesMain: { focusSearch?: boolean } | undefined;
-  NoteEditor: { id?: string; isNew?: boolean };
+  NoteEditor: { id?: string; isNew?: boolean; sourceChunk?: string; sourceNonce?: number };
 };
 
 export type ChatStackParamList = {

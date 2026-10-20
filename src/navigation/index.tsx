@@ -56,7 +56,13 @@ function NotesNavigator() {
   return (
     <NotesStack.Navigator screenOptions={{ headerShown: false }}>
       <NotesStack.Screen name="NotesMain" component={NotesScreen} />
-      <NotesStack.Screen name="NoteEditor" component={NoteEditorScreen} />
+      {/* One editor per note: opening another note from chat pushes a fresh
+          screen instead of reusing one whose state belongs to a different note. */}
+      <NotesStack.Screen
+        name="NoteEditor"
+        component={NoteEditorScreen}
+        getId={({ params }) => params?.id}
+      />
     </NotesStack.Navigator>
   );
 }

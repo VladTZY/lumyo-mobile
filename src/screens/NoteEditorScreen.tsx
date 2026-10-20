@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Keyboard,
+  ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Keyboard, AccessibilityInfo,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bold, Italic, Underline, Folder, RefreshCw, X, ScrollText } from 'lucide-react-native';
@@ -11,6 +12,8 @@ import { LogoMark } from '../components/Logo';
 import { BackButton, CenteredSpinner } from '../components/ui';
 import { MarkdownText } from '../components/MarkdownText';
 import { FadeSlideIn } from '../components/FadeSlideIn';
+import { locateChunk } from '../lib/locateChunk';
+import { passageScroll } from '../lib/passageScroll';
 import { getNote, createNote, updateNote, autocategorizeNote, type Note } from '../services/notes';
 import { getSummary, generateSummary, type NoteSummary } from '../services/summaries';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -22,6 +25,27 @@ const SUMMARY_POLL_INTERVAL = 2000;
 
 // Brings the 36px toolbar buttons up to the 44px minimum touch target.
 const TOOLBTN_HITSLOP = { top: 4, bottom: 4, left: 4, right: 4 };
+
+// Matches bodyInput.lineHeight; used to place the cited passage on screen.
+const BODY_LINE_HEIGHT = 26;
+// The cited passage lands this far down the viewport.
+const SCROLL_TARGET_RATIO = 0.25;
+const BANNER_HITSLOP = { top: 4, bottom: 4, left: 8, right: 8 };
+
+type SourceNotice = 'exact' | 'approx' | 'missing';
+// Web renders the body as a plain textarea, so it can scroll to the passage
+// but cannot highlight it; its copy must not claim a highlight.
+const SOURCE_NOTICE_TEXT: Record<SourceNotice, string> = Platform.OS === 'web'
+  ? {
+    exact: 'Scrolled to the passage Lumyo used.',
+    approx: 'This note changed since Lumyo read it. Scrolled to the closest passage.',
+    missing: "This note changed since Lumyo read it, so the passage can't be found.",
+  }
+  : {
+    exact: 'Highlighted the passage Lumyo used.',
+    approx: 'This note changed since Lumyo read it. Highlighted the closest passage.',
+    missing: "This note changed since Lumyo read it, so the passage can't be highlighted.",
+  };
 
 function wordCount(text: string) {
   return text.trim() ? text.trim().split(/\s+/).length : 0;
@@ -180,7 +204,7 @@ export function NoteEditorScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { colors, scheme } = useTheme();
   const styles = useStyles(makeStyles);
-  const { id: routeId, isNew: routeIsNew } = route.params;
+  const { id: routeId, isNew: routeIsNew, sourceChunk, sourceNonce } = route.params;
   const [noteId, setNoteId] = useState(routeId);
   const [isNew, setIsNew] = useState(routeIsNew);
 
@@ -201,6 +225,17 @@ export function NoteEditorScreen({ route, navigation }: Props) {
   // Set transiently to move the cursor after a formatting edit, then released
   // so the input goes back to driving its own selection.
   const [forcedSel, setForcedSel] = useState<Sel | undefined>();
+
+  // Cited-passage highlight. Lives only in state and render output: `content`,
+  // save() and the autosave never see it.
+  const [highlight, setHighlight] = useState<{ start: number; end: number } | null>(null);
+  const [sourceNotice, setSourceNotice] = useState<SourceNotice | null>(null);
+  const [pendingScroll, setPendingScroll] = useState(false);
+  const handledNonceRef = useRef<number | undefined>(undefined);
+  const scrollRef = useRef<ScrollView>(null);
+  const bodyYRef = useRef<number | null>(null);
+  const prefixHRef = useRef<number | null>(null);
+  const viewportHRef = useRef(0);
 
   const [summary, setSummary] = useState<NoteSummary | null>(null);
   const [summaryDismissed, setSummaryDismissed] = useState(false);
@@ -261,6 +296,66 @@ export function NoteEditorScreen({ route, navigation }: Props) {
   useEffect(() => { isNewRef.current = isNew; }, [isNew]);
 
   useEffect(() => { if (!isNew) load(); }, [load, isNew]);
+
+  // Locate the cited passage once the note has loaded, and again for each new
+  // tap (sourceNonce) on an already-open screen.
+  useEffect(() => {
+    if (loading || !note || sourceNonce === undefined || sourceNonce === handledNonceRef.current) return;
+    handledNonceRef.current = sourceNonce;
+    if (!sourceChunk?.trim()) return;
+    const m = locateChunk(contentRef.current, sourceChunk);
+    if (!m) {
+      setHighlight(null);
+      setSourceNotice('missing');
+      setPendingScroll(false);
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+      return;
+    }
+    setHighlight({ start: m.start, end: m.end });
+    setSourceNotice(m.exact ? 'exact' : 'approx');
+    setPendingScroll(true);
+  }, [loading, note, sourceNonce, sourceChunk]);
+
+  const clearHighlight = useCallback(() => {
+    setHighlight(null);
+    setSourceNotice(null);
+    setPendingScroll(false);
+  }, []);
+
+  // Scrolls from the latest measurements. On web the textarea has a fixed
+  // height and scrolls itself, so it takes the in-body offset first.
+  const scrollToPassage = useCallback(() => {
+    if (prefixHRef.current === null) return;
+    const web = Platform.OS === 'web';
+    const el = web ? (bodyRef.current as any) : null;
+    const { outerY, innerTop } = passageScroll({
+      prefixHeight: prefixHRef.current,
+      lineHeight: BODY_LINE_HEIGHT,
+      bodyY: bodyYRef.current ?? NaN,
+      viewportHeight: viewportHRef.current,
+      ratio: SCROLL_TARGET_RATIO,
+      innerViewportHeight: el && typeof el.clientHeight === 'number' ? el.clientHeight : undefined,
+    });
+    if (el && typeof el.clientHeight === 'number') el.scrollTop = innerTop;
+    scrollRef.current?.scrollTo({ y: outerY, animated: true });
+  }, []);
+
+  // Fires once the hidden measurer has laid out the text before the passage.
+  // The banner mounts in the same commit, so bodyWrap's y may still be stale
+  // here; scroll again next frame, after its onLayout has had a chance to run.
+  const onMeasure = useCallback((e: LayoutChangeEvent) => {
+    prefixHRef.current = e.nativeEvent.layout.height;
+    scrollToPassage();
+    requestAnimationFrame(scrollToPassage);
+    setPendingScroll(false);
+  }, [scrollToPassage]);
+
+  // VoiceOver ignores accessibilityLiveRegion, so announce the banner there.
+  useEffect(() => {
+    if (sourceNotice && Platform.OS === 'ios') {
+      AccessibilityInfo.announceForAccessibility(SOURCE_NOTICE_TEXT[sourceNotice]);
+    }
+  }, [sourceNotice]);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
@@ -350,13 +445,14 @@ export function NoteEditorScreen({ route, navigation }: Props) {
   }, [stopPolling]);
 
   const applyFormat = useCallback((transform: (text: string, sel: Sel) => FormatResult) => {
+    clearHighlight();
     const result = transform(contentRef.current, sel);
     setContent(result.text);
     isDirty.current = true;
     setSel(result.sel);
     setForcedSel(result.sel);
     bodyRef.current?.focus();
-  }, [sel]);
+  }, [sel, clearHighlight]);
 
   const [categorizing, setCategorizing] = useState(false);
 
@@ -431,6 +527,8 @@ export function NoteEditorScreen({ route, navigation }: Props) {
 
       {/* Editor */}
       <ScrollView
+        ref={scrollRef}
+        onLayout={(e) => { viewportHRef.current = e.nativeEvent.layout.height; }}
         style={styles.scroll}
         contentContainerStyle={styles.editorContent}
         keyboardShouldPersistTaps="handled"
@@ -500,51 +598,95 @@ export function NoteEditorScreen({ route, navigation }: Props) {
           </FadeSlideIn>
         )}
 
+        {/* Which passage the answer used, and whether it could be found. */}
+        {sourceNotice && (
+          <View accessibilityLiveRegion="polite">
+            <FadeSlideIn style={styles.sourceBanner}>
+              <LogoMark size={13} />
+              <Text style={styles.sourceBannerText}>{SOURCE_NOTICE_TEXT[sourceNotice]}</Text>
+              <TouchableOpacity
+                style={styles.summaryActionBtn}
+                onPress={clearHighlight}
+                hitSlop={BANNER_HITSLOP}
+                accessibilityRole="button"
+                accessibilityLabel="Hide highlight notice"
+              >
+                <X size={13} color={colors.citationText} strokeWidth={1.75} />
+                <Text style={styles.summaryActionText}>Hide</Text>
+              </TouchableOpacity>
+            </FadeSlideIn>
+          </View>
+        )}
+
         {/* Body — children (not value) so nested Text spans style the
             markdown live while the underlying string stays editable.
             react-native-web can't render children inside a textarea, so web
             falls back to a plain controlled value. */}
-        <TextInput
-          ref={bodyRef}
-          style={styles.bodyInput}
-          value={Platform.OS === 'web' ? content : undefined}
-          onChangeText={(t) => {
-            isDirty.current = true;
-            const adjusted = processNewline(contentRef.current, t);
-            if (adjusted) {
-              setContent(adjusted.text);
-              setSel(adjusted.sel);
-              setForcedSel(adjusted.sel);
-            } else {
-              setContent(t);
-            }
-          }}
-          selection={forcedSel}
-          onSelectionChange={(e) => {
-            setSel(e.nativeEvent.selection);
-            if (forcedSel) setForcedSel(undefined);
-          }}
-          placeholder="Start writing…"
-          placeholderTextColor={colors.textMuted}
-          keyboardAppearance={scheme}
-          accessibilityLabel="Note text"
-          multiline
-          // Let the outer ScrollView own the drag gesture — a focused
-          // multiline TextInput otherwise swallows it and the note can't be
-          // scrolled while the keyboard is up. The input grows with its
-          // content, so it never needs to scroll itself.
-          scrollEnabled={false}
-          // Makes the focus-press cancelable on iOS: a drag that turns into a
-          // scroll no longer focuses the input and pops the keyboard — only a
-          // clean tap does.
-          rejectResponderTermination={false}
-          textAlignVertical="top"
-          selectionColor={colors.accent}
+        <View
+          style={styles.bodyWrap}
+          onLayout={(e) => { bodyYRef.current = e.nativeEvent.layout.y; }}
         >
-          {Platform.OS !== 'web' && content.length > 0
-            ? <MarkdownText text={content} />
-            : undefined}
-        </TextInput>
+          <TextInput
+            ref={bodyRef}
+            style={styles.bodyInput}
+            value={Platform.OS === 'web' ? content : undefined}
+            onChangeText={(t) => {
+              clearHighlight();
+              isDirty.current = true;
+              const adjusted = processNewline(contentRef.current, t);
+              if (adjusted) {
+                setContent(adjusted.text);
+                setSel(adjusted.sel);
+                setForcedSel(adjusted.sel);
+              } else {
+                setContent(t);
+              }
+            }}
+            selection={forcedSel}
+            onSelectionChange={(e) => {
+              setSel(e.nativeEvent.selection);
+              if (forcedSel) setForcedSel(undefined);
+            }}
+            placeholder="Start writing…"
+            placeholderTextColor={colors.textMuted}
+            keyboardAppearance={scheme}
+            accessibilityLabel="Note text"
+            multiline
+            // Let the outer ScrollView own the drag gesture — a focused
+            // multiline TextInput otherwise swallows it and the note can't be
+            // scrolled while the keyboard is up. The input grows with its
+            // content, so it never needs to scroll itself.
+            scrollEnabled={false}
+            // Makes the focus-press cancelable on iOS: a drag that turns into a
+            // scroll no longer focuses the input and pops the keyboard — only a
+            // clean tap does.
+            rejectResponderTermination={false}
+            textAlignVertical="top"
+            selectionColor={colors.accent}
+          >
+            {Platform.OS !== 'web' && content.length > 0
+              ? <MarkdownText text={content} highlight={highlight} highlightColor={colors.highlightBg} />
+              : undefined}
+          </TextInput>
+          {/* Invisible copy of the text before the passage; its height says how
+              far down the passage starts (TextInput has no offset-to-position API). */}
+          {pendingScroll && highlight && (
+            <Text
+              style={[styles.bodyInput, styles.measurer]}
+              onLayout={onMeasure}
+              accessible={false}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              pointerEvents="none"
+            >
+              {Platform.OS === 'web'
+                // Web shows raw markers, so measure the plain prefix. The
+                // zero-width space keeps a trailing newline from collapsing.
+                ? `${content.slice(0, highlight.start)}\u200b`
+                : <MarkdownText text={content.slice(0, highlight.start)} />}
+            </Text>
+          )}
+        </View>
       </ScrollView>
 
       {/* Footer */}
@@ -661,6 +803,16 @@ const makeStyles = (colors: Colors) => StyleSheet.create({
   summaryActionText: {
     fontFamily: fonts.inter.semiBold, fontSize: 13, color: colors.citationText,
   },
+  sourceBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: colors.citationBg, borderRadius: radius.lg,
+    paddingVertical: 8, paddingLeft: 12, paddingRight: 4,
+  },
+  sourceBannerText: {
+    flex: 1, fontFamily: fonts.inter.regular, fontSize: 13, lineHeight: 18, color: colors.citationText,
+  },
+  bodyWrap: { position: 'relative' },
+  measurer: { position: 'absolute', top: 0, left: 0, right: 0, opacity: 0, minHeight: 0 },
   bodyInput: {
     fontFamily: fonts.inter.regular, fontSize: 16,
     color: colors.textPrimary, lineHeight: 26, minHeight: 400, padding: 0,

@@ -29,6 +29,8 @@ export interface Colors {
   /** Citation chips and selected rows (haze). */
   citationBg: string;
   citationText: string;
+  /** Background for the cited passage highlighted in a note (textPrimary stays >= 4.5:1). */
+  highlightBg: string;
   /** The logo's spark; decorative only. */
   spark: string;
   /** Neutral high-contrast fill: tab indicator, user chat bubble. */
@@ -57,6 +59,7 @@ export const lightColors: Colors = {
   accentText: '#6D28D9',
   citationBg: '#EEE9FD',
   citationText: '#6D28D9',
+  highlightBg: '#DDD0FC',
   spark: '#BCA3FE',
   ink: '#0D0D0D',
   onInk: '#FFFFFF',
@@ -84,6 +87,7 @@ export const darkColors: Colors = {
   accentText: '#A78BFA',
   citationBg: '#221A38',
   citationText: '#C4B5FD',
+  highlightBg: '#3B2A6B',
   spark: '#BCA3FE',
   ink: '#F2F2F2',
   onInk: '#0A0A0A',

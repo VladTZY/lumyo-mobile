@@ -220,3 +220,78 @@ test('stripMarkdown: strips bold/italic/underline/link/bullet/heading/code marke
 test('stripMarkdown: leaves plain text untouched', () => {
   assert.equal(stripMarkdown('just plain text'), 'just plain text');
 });
+
+// ---------------------------------------------------------------------------
+// highlight / highlightColor (cited-passage highlight, visual only)
+// ---------------------------------------------------------------------------
+
+const HL = '#123456';
+const hasBg = (r) => r.styles.some((st) => st && st.backgroundColor === HL);
+
+function hlRuns(text, highlight, highlightColor = HL) {
+  return flatten(MarkdownText({ text, highlight, highlightColor }), []);
+}
+
+test('AC11: null/undefined highlight renders identically to no highlight', () => {
+  const src = 'aa **bold** cc\n• x *i*';
+  const base = JSON.stringify(MarkdownText({ text: src }));
+  assert.equal(JSON.stringify(MarkdownText({ text: src, highlight: null, highlightColor: HL })), base);
+  assert.equal(JSON.stringify(MarkdownText({ text: src, highlight: undefined })), base);
+});
+
+test('AC12: highlight spanning a bold boundary tints exactly text.slice(start, end)', () => {
+  const text = 'aa **bold** cc';
+  const rs = hlRuns(text, { start: 5, end: 12 });
+  assert.equal(rs.map((r) => r.text).join(''), text);
+  assert.equal(rs.filter((r) => !isHiddenStyle(r.styles)).map((r) => r.text).join(''), 'aa bold cc');
+  assert.equal(rs.filter(hasBg).map((r) => r.text).join(''), text.slice(5, 12));
+  assert.equal(rs.filter((r) => hasBg(r) && !isHiddenStyle(r.styles)).map((r) => r.text).join(''), 'bold ');
+});
+
+test('AC12: highlight inside plain text splits the run and round-trips', () => {
+  const text = 'hello world today';
+  const rs = hlRuns(text, { start: 6, end: 11 });
+  assert.equal(rs.map((r) => r.text).join(''), text);
+  assert.equal(rs.filter(hasBg).map((r) => r.text).join(''), 'world');
+});
+
+test('AC13: highlight across newline and bullet prefix', () => {
+  const text = '• a\n• b';
+  const rs = hlRuns(text, { start: 2, end: 7 });
+  assert.equal(rs.map((r) => r.text).join(''), text);
+  assert.equal(rs.filter(hasBg).map((r) => r.text).join(''), text.slice(2, 7));
+});
+
+test('AC13: highlight over underline markers', () => {
+  const text = 'x <u>under</u> y';
+  const rs = hlRuns(text, { start: 2, end: 14 });
+  assert.equal(rs.map((r) => r.text).join(''), text);
+  assert.equal(rs.filter(hasBg).map((r) => r.text).join(''), text.slice(2, 14));
+});
+
+test('AC14: invalid ranges and missing color never throw and add no background', () => {
+  const text = 'aa **bold** cc';
+  for (const range of [{ start: 5, end: 5 }, { start: 9, end: 3 }, { start: -1, end: 2 }, { start: NaN, end: 4 }]) {
+    let rs;
+    assert.doesNotThrow(() => { rs = hlRuns(text, range); });
+    assert.equal(rs.filter(hasBg).length, 0);
+    assert.equal(rs.map((r) => r.text).join(''), text);
+  }
+  const noColor = flatten(MarkdownText({ text, highlight: { start: 0, end: 4 } }), []);
+  assert.equal(noColor.filter(hasBg).length, 0);
+  assert.equal(
+    JSON.stringify(MarkdownText({ text, highlight: { start: 0, end: 4 } })),
+    JSON.stringify(MarkdownText({ text }))
+  );
+});
+
+test('AC14: end past the text is clamped, highlighting everything', () => {
+  const text = 'aa **bold** cc';
+  const rs = hlRuns(text, { start: 0, end: 999 });
+  assert.equal(rs.filter(hasBg).map((r) => r.text).join(''), text);
+});
+
+test('MarkdownText imports stay minimal (react, react-native, ../theme)', () => {
+  const imports = [...markdownTextSrc.matchAll(/from '([^']+)'/g)].map((m) => m[1]).sort();
+  assert.deepEqual(imports, ['../theme', 'react', 'react-native']);
+});

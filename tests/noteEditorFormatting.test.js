@@ -30,8 +30,8 @@ const allLines = fs.readFileSync(SCREEN_FILE, 'utf8').split('\n');
 // Lines 26-171 (1-indexed) define wordCount/Sel/FormatResult/escapeForRegExp/
 // isWrappedWith/toggleInline/BULLET/INLINE_SPAN/processNewline, with no
 // imports and no JSX.
-const HELPERS_START = 26;
-const HELPERS_END = 171;
+const HELPERS_START = 50;
+const HELPERS_END = 195;
 const helpersSrc = allLines.slice(HELPERS_START - 1, HELPERS_END).join('\n');
 
 for (const marker of [
@@ -48,8 +48,8 @@ for (const marker of [
 }
 
 // Lines 386-388 (1-indexed): the toolbar active-state computation, verbatim.
-const ACTIVE_START = 386;
-const ACTIVE_END = 388;
+const ACTIVE_START = 482;
+const ACTIVE_END = 484;
 const activeSrc = allLines.slice(ACTIVE_START - 1, ACTIVE_END).join('\n');
 for (const marker of ['boldActive', 'italicActive', 'underlineActive']) {
   assert.ok(

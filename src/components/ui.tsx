@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator,
   type StyleProp, type ViewStyle, type TextInputProps,
 } from 'react-native';
-import { ChevronLeft, Search, type LucideIcon } from 'lucide-react-native';
+import { ChevronLeft, FileText, Search, type LucideIcon } from 'lucide-react-native';
 import { fonts, radius, type Colors } from '../theme';
 import { useStyles, useTheme } from '../theme/ThemeContext';
 import { FadeSlideIn } from './FadeSlideIn';
@@ -220,23 +220,28 @@ export function Tag({ label }: { label: string }) {
 }
 
 /**
- * The signature element: a numbered marker plus the note's title. Tapping it
- * opens the note the answer came from.
+ * The signature element: the note's title as a violet pill (numbered when an
+ * `index` is given, otherwise led by a note icon). Tapping it opens the note
+ * the answer came from.
  */
 export function CitationChip({
-  index, title, onPress,
-}: { index: number; title: string; onPress?: () => void }) {
+  index, title, onPress, accessibilityHint,
+}: { index?: number; title: string; onPress?: () => void; accessibilityHint?: string }) {
   const s = useStyles(makeStyles);
+  const { colors } = useTheme();
   return (
     <Pressable
       onPress={onPress}
       disabled={!onPress}
       hitSlop={8}
       accessibilityRole={onPress ? 'link' : 'text'}
-      accessibilityLabel={`Source ${index}: ${title}`}
-      style={({ pressed }) => [s.chip, pressed && s.pressedFade]}
+      accessibilityLabel={index === undefined ? `Source: ${title}` : `Source ${index}: ${title}`}
+      accessibilityHint={accessibilityHint}
+      style={({ pressed }) => [s.chip, index === undefined && s.chipNoIndex, pressed && s.pressedFade]}
     >
-      <Text style={s.chipIndex}>{index}</Text>
+      {index === undefined
+        ? <FileText size={13} color={colors.citationText} strokeWidth={1.75} />
+        : <Text style={s.chipIndex}>{index}</Text>}
       <Text style={s.chipText} numberOfLines={1}>{title}</Text>
     </Pressable>
   );
@@ -339,8 +344,9 @@ const makeStyles = (colors: Colors) => StyleSheet.create({
   chip: {
     flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '100%',
     backgroundColor: colors.citationBg, borderRadius: radius.full,
-    paddingLeft: 4, paddingRight: 10, paddingVertical: 4,
+    paddingLeft: 4, paddingRight: 10, paddingVertical: 4, minHeight: 28,
   },
+  chipNoIndex: { paddingLeft: 10 },
   chipIndex: {
     minWidth: 18, height: 18, borderRadius: 9, overflow: 'hidden',
     backgroundColor: colors.bgPrimary, color: colors.citationText,

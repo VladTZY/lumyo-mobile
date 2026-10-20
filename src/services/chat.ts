@@ -3,6 +3,12 @@ import { BASE_URL, getToken, request } from './api';
 export interface Source {
   note_id: number;
   title: string;
+  /**
+   * The passage the answer used: the full chunk body of the note, without the
+   * indexing prefix. Messages saved before that change hold a truncated
+   * (200 codepoints, ending "...") string that still starts with the
+   * "title: ...\ntags: ...\n\n" prefix; locateChunk handles both shapes.
+   */
   chunk_text: string;
 }
 
