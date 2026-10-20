@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Animated, Platform } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Home, Folder, FileText, MessageCircle } from 'lucide-react-native';
 import type { Colors } from '../theme';
 import { useStyles, useTheme } from '../theme/ThemeContext';
 import { useReducedMotion } from '../components/FadeSlideIn';
+import { useKeyboardShown } from '../components/useKeyboardShown';
 
 // root: the first screen of each tab's stack, used when re-tapping a tab.
 const TABS = [
@@ -21,6 +22,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
   const [tabWidth, setTabWidth] = useState(0);
   const translateX = useRef(new Animated.Value(0)).current;
   const positioned = useRef(false);
+  const keyboardShown = useKeyboardShown();
 
   useEffect(() => {
     if (tabWidth <= 0) return;
@@ -38,6 +40,11 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
       tension: 220,
     }).start();
   }, [state.index, tabWidth, reduced, translateX]);
+
+  // Android resizes the window for the keyboard, which would stack this bar
+  // on top of the editor's format bar. iOS's keyboard covers it already.
+  // After every hook so the hook order stays stable.
+  if (Platform.OS === 'android' && keyboardShown) return null;
 
   return (
     <View style={styles.wrapper}>
